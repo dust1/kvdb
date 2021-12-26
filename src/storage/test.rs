@@ -6,31 +6,39 @@ use crate::storage::Store;
 struct Test {
     key: &'static [u8],
     value: &'static [u8],
-    range: Option<Range>
+    range: Option<Range>,
+    range_value: Vec<(Vec<u8>, Vec<u8>)>
 }
 
 #[test]
 fn test_memory_kv() -> Result<()> {
     let tests = [
         Test {
-            key:"a".as_bytes(),
-            value: "aaaaa".as_bytes(),
-            range: None
+            key:b"a",
+            value: b"aaaaa",
+            range: None,
+            range_value: vec![]
         },
         Test {
-            key: "b".as_bytes(),
-            value: "bbbbbbb".as_bytes(),
-            range: None
+            key: b"b",
+            value: b"bbbbbbb",
+            range: None,
+            range_value: vec![]
         },
         Test {
             key: "张三".as_bytes(),
             value: "李四".as_bytes(),
-            range: None
+            range: None,
+            range_value: vec![]
         },
         Test {
-            key: "c".as_bytes(),
-            value: "ccc".as_bytes(),
-            range: Some(Range::from("a".as_bytes().to_vec()..="c".as_bytes().to_vec()))
+            key: b"c",
+            value: b"ccc",
+            range: Some(Range::from(b"a".to_vec()..b"c".to_vec())),
+            range_value: vec![
+                (b"b".to_vec(), b"bbbbbbb".to_vec()),
+                (b"a".to_vec(), b"aaaaa".to_vec()),
+            ]
         }
 
     ];
@@ -48,7 +56,8 @@ fn test_memory_kv() -> Result<()> {
         }
 
         if let Some(range) = test.range {
-            store.scan(range);
+            let scan = store.scan(range).rev().collect::<Result<Vec<_>>>()?;
+            assert_eq!(test.range_value, scan);
         }
     }
 
