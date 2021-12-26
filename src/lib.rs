@@ -1,8 +1,9 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
+#![warn(clippy::all)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::unneeded_field_pattern)]
+
+mod client;
+mod error;
+mod server;
+mod sql;
+mod storage;

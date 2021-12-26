@@ -1,0 +1,68 @@
+use serde_derive::{Deserialize, Serialize};
+use std::fmt::{self, Display, Formatter};
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Error {
+    Config(String),
+    Value(String),
+    Internal(String),
+    Parse(String),
+    Serialization,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Config(s) | Error::Value(s) | Error::Internal(s) | Error::Parse(s) => {
+                write!(f, "{}", s)
+            }
+            Error::Serialization => write!(f, "Serialization failure, retry transaction"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<std::array::TryFromSliceError> for Error {
+    fn from(err: std::array::TryFromSliceError) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
+
+impl From<std::net::AddrParseError> for Error {
+    fn from(err: std::net::AddrParseError) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
+
+impl From<std::num::ParseFloatError> for Error {
+    fn from(err: std::num::ParseFloatError) -> Self {
+        Error::Parse(err.to_string())
+    }
+}
+
+impl From<std::num::ParseIntError> for Error {
+    fn from(err: std::num::ParseIntError) -> Self {
+        Error::Parse(err.to_string())
+    }
+}
+
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(err: std::string::FromUtf8Error) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
+
+impl<T> From<std::sync::PoisonError<T>> for Error {
+    fn from(err: std::sync::PoisonError<T>) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
