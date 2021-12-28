@@ -1,6 +1,6 @@
+mod btree;
 mod memory;
 mod range;
-mod btree;
 
 #[cfg(test)]
 mod test;

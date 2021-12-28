@@ -8,9 +8,7 @@ pub trait Catalog {
 /// a table schema
 pub struct Table {
     pub name: String,
-    pub columns: Vec<ColumnDef>
+    pub columns: Vec<ColumnDef>,
 }
 
-impl Table {
-
-}
+impl Table {}
