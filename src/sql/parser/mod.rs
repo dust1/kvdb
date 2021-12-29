@@ -1,5 +1,5 @@
 pub mod ast;
-mod translate;
+pub mod translate;
 
 use sqlparser::ast::{ColumnDef, ObjectType, Statement};
 use sqlparser::parser::Parser;

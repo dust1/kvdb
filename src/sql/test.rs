@@ -7,6 +7,8 @@ use sqlparser::parser::Parser;
 #[test]
 fn test_parser() -> Result<()> {
     let sqls = [
+        "SELECT 1;",
+        "SELECT 1+1;",
         "SELECT LastName,FirstName FROM Persons",
         "SELECT * FROM Persons WHERE City='Beijing'",
         "SELECT * FROM Persons WHERE FirstName='Thomas' AND LastName='Carter'",
