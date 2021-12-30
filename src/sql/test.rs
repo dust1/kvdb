@@ -11,6 +11,8 @@ fn test_parser() -> Result<()> {
         "SELECT 1+1;",
         "SELECT LastName,FirstName FROM Persons",
         "SELECT * FROM Persons WHERE City='Beijing'",
+        "SELECT * FROM Persons JOIN Class ON Persons.classId = Class.Id WHERE Persons.City='Beijing'",
+        "SELECT * FROM Persons, Class WHERE Persons.City='Beijing' AND Persons.classId = Class.Id",
         "SELECT * FROM Persons WHERE FirstName='Thomas' AND LastName='Carter'",
         "SELECT Company, OrderNumber FROM Orders ORDER BY Company",
         "INSERT INTO Persons VALUES ('Gates', 'Bill', 'Xuanwumen 10', 'Beijing')",

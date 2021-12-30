@@ -1,9 +1,10 @@
 mod planner;
 
-use sqlparser::ast::Statement;
+use sqlparser::ast::{Statement, TableAlias};
 
 use crate::error::Result;
 use crate::sql::schema::{Catalog, Table};
+use crate::sql::types::expression::Expression;
 
 /// a query plan
 pub struct Plan(pub Node);
@@ -21,5 +22,10 @@ pub enum Node {
     },
     DropTable {
         table: String
+    },
+    Scan {
+        table: String,
+        alias: Option<TableAlias>,
+        filter: Option<Expression>
     }
 }
