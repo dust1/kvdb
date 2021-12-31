@@ -17,6 +17,7 @@ impl Plan {
 
 /// Plan Node
 pub enum Node {
+    Nothing,
     CreateTable{
         schema: Table
     },

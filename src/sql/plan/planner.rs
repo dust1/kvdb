@@ -86,24 +86,40 @@ impl<'a, C: Catalog> Planner<'a, C> {
     /// create plan from select, maybe should handled another JOIN in here.
     /// e.g. SELECT * FROM A, B WHERE A.id = B.id
     fn select_to_plan(&mut self, select: &Select, scope: &mut Scope) -> Result<Node> {
-        let plans = self.plan_from_table(&select.from)?;
+        let from_node = self.plan_from_table(&select.from, scope)?;
+
+        // select something, e.g SELECT id, name FROM table;
+        // process 'id, name'
+        let plan = match &select.selection {
+            Some(predicate_expr) => {
+                let mut fields = vec![];
+
+                todo!()
+            },
+            None => {
+                todo!()
+            }
+        };
         todo!()
     }
 
     /// create logic plan node from TableWithJoins
-    fn plan_from_table(&mut self, from: &[TableWithJoins]) -> Result<Vec<Node>> {
-        if from.len() != 1 {
-            return Err(Error::Value("can not select * without a table".to_string()));
+    fn plan_from_table(&mut self, from: &[TableWithJoins], scope: &mut Scope) -> Result<Node> {
+        if from.is_empty() {
+            return Ok(Node::Nothing);
         }
-
-        from.iter().map(|t| self.plan_table_with_joins(t))
-            .collect::<Result<Vec<_>>>()
+        if from.len() != 1 {
+            return Err(Error::Value("can not support two or more table query".to_string()));
+        }
+        self.plan_table_with_joins(&from[0], scope)
     }
 
     /// create logic plan node from table with join
     /// e.g. SELECT * FROM A JOIN B ON A.id = B.id
-    fn plan_table_with_joins(&mut self, t: &TableWithJoins) -> Result<Node> {
-        todo!()
+    fn plan_table_with_joins(&mut self, t: &TableWithJoins, scope: &mut Scope) -> Result<Node> {
+        let left = self.create_relation(&t.relation, scope);
+        //todo join
+        left
     }
 
     /// create a relation plan node

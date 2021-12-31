@@ -4,7 +4,6 @@ use crate::sql::parser::translate::translate_object_name_to_string;
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
-    //TODO
 
     /// Read a table, if it exists
     fn read_table(&self, table: &str) -> Result<Option<Table>>;
