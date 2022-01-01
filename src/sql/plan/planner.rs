@@ -296,12 +296,9 @@ impl<'a, C: Catalog> Planner<'a, C> {
         match relation {
             TableFactor::Table { name, alias, .. } => {
                 let table_name = name.to_string();
-                let alias_name = match alias {
-                    Some(a) => Some(a.clone()),
-                    None => None,
-                };
+                let alias_name = alias.as_ref().map(|a| a.clone());
                 scope.add_table(
-                    alias.as_ref().map(|a| a.name.value.clone()).unwrap_or(table_name.clone()),
+                    alias.as_ref().map(|a| a.name.value.clone()).unwrap_or_else(|| table_name.clone()),
                     self.catalog.must_read_table(&table_name)?,
                 )?;
                 Ok(Node::Scan { table: table_name, alias: alias_name, filter: None })
