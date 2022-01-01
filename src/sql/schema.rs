@@ -1,10 +1,9 @@
-use sqlparser::ast::{ColumnDef, ObjectName};
 use crate::error::{Error, Result};
 use crate::sql::parser::translate::translate_object_name_to_string;
+use sqlparser::ast::{ColumnDef, ObjectName};
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
-
     /// Read a table, if it exists
     fn read_table(&self, table: &str) -> Result<Option<Table>>;
 
@@ -24,11 +23,7 @@ pub struct Table {
 
 impl Table {
     pub fn new(name: ObjectName, columns: Vec<ColumnDef>) -> Result<Table> {
-        let table_name = translate_object_name_to_string(&name)?.clone();
-        Ok(Table {
-            name: table_name,
-            columns
-        })
+        let table_name = translate_object_name_to_string(&name)?;
+        Ok(Table { name: table_name, columns })
     }
-
 }

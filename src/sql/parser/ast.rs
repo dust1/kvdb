@@ -1,4 +1,4 @@
-use sqlparser::ast::{AlterTableOperation, Assignment, ColumnDef, Expr, Ident, ObjectName, Query};
+use sqlparser::ast::{Assignment, ColumnDef, Expr, Ident, ObjectName, Query};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum KVStatement {
@@ -37,7 +37,5 @@ pub enum KVStatement {
         columns: Vec<ColumnDef>,
     },
     /// DROP TABLE
-    DropTable {
-        names: Vec<ObjectName>,
-    },
+    DropTable { names: Vec<ObjectName> },
 }

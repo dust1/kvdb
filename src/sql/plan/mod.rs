@@ -10,7 +10,7 @@ use crate::sql::types::expression::Expression;
 pub struct Plan(pub Node);
 
 impl Plan {
-    pub fn build<C: Catalog>(statement: Statement, catalog: &mut C) -> Result<Self> {
+    pub fn build<C: Catalog>(_statement: Statement, _catalog: &mut C) -> Result<Self> {
         todo!()
     }
 }
@@ -18,15 +18,9 @@ impl Plan {
 /// Plan Node
 pub enum Node {
     Nothing,
-    CreateTable{
-        schema: Table
-    },
-    DropTable {
-        table: String
-    },
-    Scan {
-        table: String,
-        alias: Option<TableAlias>,
-        filter: Option<Expression>
-    }
+    CreateTable { schema: Table },
+    DropTable { table: String },
+    Scan { table: String, alias: Option<TableAlias>, filter: Option<Expression> },
+    Filter { source: Box<Node>, predicate: Expression },
+    Projection { source: Box<Node>, expression: Vec<(Expression, Option<String>)> },
 }
