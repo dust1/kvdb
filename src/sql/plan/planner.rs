@@ -6,10 +6,10 @@ use crate::sql::schema::{Catalog, Table};
 use crate::sql::types;
 use crate::sql::types::expression::Expression;
 use sqlparser::ast::{
-    Expr, Ident, Join, OrderByExpr, Query, Select, SelectItem, SetExpr, TableFactor,
-    TableWithJoins,
+    Expr, Ident, Join, OrderByExpr, Query, Select, SelectItem, SetExpr, TableFactor, TableWithJoins,
 };
 use std::collections::{HashMap, HashSet};
+use std::process::id;
 
 /// query plan builder
 pub struct Planner<'a, C: Catalog> {
@@ -51,7 +51,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
         Ok(Plan(self.build_statement(statement)?))
     }
 
-    pub fn build_statement(&mut self, statement: KVStatement) -> Result<Node> {
+    fn build_statement(&mut self, statement: KVStatement) -> Result<Node> {
         match statement {
             KVStatement::CreateTable { name, columns } => {
                 let table = Table::new(name, columns)?;
@@ -63,12 +63,18 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 Ok(Node::DropTable { table: table_name })
             }
             KVStatement::Query(query) => self.query_to_plan(query.as_ref()),
+            KVStatement::Insert { table_name, columns, source } => Ok(Node::Insert {
+                table: table_name.to_string(),
+                columns: columns.iter().map(|ident| ident.to_string()).collect::<Vec<String>>(),
+                expressions: self.query_to_expressions(source.as_ref())?,
+            }),
             _ => {
                 todo!()
             }
         }
     }
 
+    /// by select
     fn query_to_plan(&mut self, query: &Query) -> Result<Node> {
         let mut scope = Scope::new();
         let set_expr = &query.body;
@@ -77,6 +83,25 @@ impl<'a, C: Catalog> Planner<'a, C> {
         // TODO ORDER BY
         // TODO LIMIT
         Ok(node)
+    }
+
+    /// by Insert
+    fn query_to_expressions(&mut self, query: &Query) -> Result<Vec<Vec<Expression>>> {
+        let mut scope = Scope::new();
+        if let SetExpr::Values(values) = &query.body {
+            return values
+                .0
+                .iter()
+                .map(|items| {
+                    items
+                        .iter()
+                        .map(|expr| self.build_expression(expr, &mut scope))
+                        .collect::<Result<_>>()
+                })
+                .collect::<Result<_>>();
+        }
+
+        Err(Error::Value(format!("Un support insert by this query: {}", query)))
     }
 
     fn set_expr_to_plan(&mut self, ext_expr: &SetExpr, scope: &mut Scope) -> Result<Node> {
@@ -103,7 +128,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
         // projection expressions
         if let Some(expressions) = self.prepare_select_projection(&select.projection, scope)? {
             scope.project(&expressions)?;
-            node = Node::Projection { source: Box::new(node), expression: expressions }
+            node = Node::Projection { source: Box::new(node), expressions }
         }
 
         // todo HAVING, ORDER, LIMIT, OFFSET
@@ -296,9 +321,12 @@ impl<'a, C: Catalog> Planner<'a, C> {
         match relation {
             TableFactor::Table { name, alias, .. } => {
                 let table_name = name.to_string();
-                let alias_name = alias.as_ref().map(|a| a.clone());
+                let alias_name = alias.as_ref().map(|a| a.to_string());
                 scope.add_table(
-                    alias.as_ref().map(|a| a.name.value.clone()).unwrap_or_else(|| table_name.clone()),
+                    alias
+                        .as_ref()
+                        .map(|a| a.name.value.clone())
+                        .unwrap_or_else(|| table_name.clone()),
                     self.catalog.must_read_table(&table_name)?,
                 )?;
                 Ok(Node::Scan { table: table_name, alias: alias_name, filter: None })
@@ -336,7 +364,7 @@ impl Scope {
         }
 
         for column in &table.columns {
-            self.add_column(Some(label.clone()), Some(column.name.value.clone()));
+            self.add_column(Some(label.clone()), Some(column.name.clone()));
         }
         self.tables.insert(label, table);
         Ok(())
@@ -395,6 +423,6 @@ impl Scope {
     /// Projects the scope. This takes a set of expressions and labels in the current scope,
     /// and returns a new scope for the projection.
     fn project(&mut self, _projection: &[(Expression, Option<String>)]) -> Result<()> {
-        todo!()
+        Ok(())
     }
 }

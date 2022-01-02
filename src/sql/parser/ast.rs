@@ -1,4 +1,6 @@
-use sqlparser::ast::{Assignment, ColumnDef, Expr, Ident, ObjectName, Query};
+use sqlparser::ast::{
+    Assignment, ColumnDef, Expr, Ident, ObjectName, ObjectType, Query, Statement,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum KVStatement {
@@ -38,4 +40,29 @@ pub enum KVStatement {
     },
     /// DROP TABLE
     DropTable { names: Vec<ObjectName> },
+}
+
+impl KVStatement {
+    pub fn build_statement(statement: Statement) -> Self {
+        match statement {
+            Statement::Query(query) => KVStatement::Query(query),
+            Statement::Insert { table_name, columns, source, .. } => {
+                KVStatement::Insert { table_name, columns, source }
+            }
+            Statement::Update { table_name, assignments, selection, .. } => {
+                KVStatement::Update { table_name, assignments, selection }
+            }
+            Statement::Delete { table_name, selection, .. } => {
+                KVStatement::Delete { table_name, selection }
+            }
+            Statement::CreateTable { name, columns, .. } => {
+                KVStatement::CreateTable { name, columns }
+            }
+            Statement::Drop { names, object_type, .. } => match object_type {
+                ObjectType::Table => KVStatement::DropTable { names },
+                _ => todo!(),
+            },
+            _ => todo!(),
+        }
+    }
 }
