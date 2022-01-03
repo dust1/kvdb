@@ -1,7 +1,6 @@
 pub mod planner;
 
 use serde_derive::{Deserialize, Serialize};
-use sqlparser::ast::{Statement, TableAlias};
 use std::fmt::{Display, Formatter};
 
 use crate::error::Result;
@@ -86,7 +85,9 @@ impl Node {
                 }
                 s += "\n";
             }
-            _ => todo!(),
+            _ => {
+                // do nothing
+            },
         };
         if root {
             s = s.trim_end().to_string()
@@ -96,7 +97,7 @@ impl Node {
 }
 
 impl Display for Node {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }

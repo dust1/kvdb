@@ -1,8 +1,7 @@
 use crate::error::{Error, Result};
-use crate::sql::parser::translate::translate_object_name_to_string;
 use crate::sql::types::{DataType, Value};
 use serde_derive::{Deserialize, Serialize};
-use sqlparser::ast::{ColumnDef, ObjectName};
+use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
@@ -45,14 +44,40 @@ pub struct Column {
 
 impl Table {
     pub fn new(name: ObjectName, columns: Vec<ColumnDef>) -> Result<Table> {
-        let table_name = translate_object_name_to_string(&name)?;
+        let table_name = name.to_string();
         let columns = columns.iter().map(Column::from_column_def).collect::<Vec<_>>();
         Ok(Table { name: table_name, columns })
     }
 }
 
 impl Column {
-    pub fn from_column_def(column: &ColumnDef) -> Self {
-        todo!()
+    pub fn from_column_def(column_def: &ColumnDef) -> Self {
+        let mut column = Self {
+            name: column_def.name.to_string(),
+            datatype: DataType::new(&column_def.data_type),
+            primary_key: false,
+            nullable: false,
+            default: None,
+            unique: false,
+            references: None,
+            index: false
+        };
+
+        for column_d in &column_def.options {
+            match &column_d.option {
+                ColumnOption::Null => column.nullable = true,
+                ColumnOption::NotNull => column.nullable = false,
+                ColumnOption::Default(expr) => column.default = Some(Value::from_expr(expr)),
+                ColumnOption::Unique{is_primary: true} => {
+                    column.unique = true;
+                    column.primary_key = true;
+                    column.index = true;
+                },
+                ColumnOption::Unique {..} => column.unique = true,
+                ColumnOption::ForeignKey {foreign_table, ..} => column.references = Some(foreign_table.to_string()),
+                _ => {}
+            }
+        }
+        column
     }
 }

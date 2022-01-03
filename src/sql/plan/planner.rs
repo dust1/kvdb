@@ -1,15 +1,13 @@
 use crate::error::{Error, Result};
 use crate::sql::parser::ast::KVStatement;
-use crate::sql::parser::translate::translate_object_name_to_string;
 use crate::sql::plan::{Node, Plan};
 use crate::sql::schema::{Catalog, Table};
-use crate::sql::types;
 use crate::sql::types::expression::Expression;
 use sqlparser::ast::{
-    Expr, Ident, Join, OrderByExpr, Query, Select, SelectItem, SetExpr, TableFactor, TableWithJoins,
+    Expr, Ident, Join, Query, Select, SelectItem, SetExpr, TableFactor, TableWithJoins,
 };
 use std::collections::{HashMap, HashSet};
-use std::process::id;
+use crate::sql::types::Value;
 
 /// query plan builder
 pub struct Planner<'a, C: Catalog> {
@@ -59,8 +57,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
             }
             KVStatement::DropTable { names } => {
                 let name = &names[0];
-                let table_name = translate_object_name_to_string(name)?;
-                Ok(Node::DropTable { table: table_name })
+                Ok(Node::DropTable { table: name.to_string() })
             }
             KVStatement::Query(query) => self.query_to_plan(query.as_ref()),
             KVStatement::Insert { table_name, columns, source } => Ok(Node::Insert {
@@ -185,16 +182,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
         use sqlparser::*;
         use Expression::*;
         Ok(match sql_expr {
-            Expr::Value(literal) => Constant(match literal {
-                ast::Value::Number(n, _) => types::Value::parse_number(n),
-                ast::Value::SingleQuotedString(ref s)
-                | ast::Value::NationalStringLiteral(ref s)
-                | ast::Value::HexStringLiteral(ref s)
-                | ast::Value::DoubleQuotedString(ref s) => types::Value::parse_string(s),
-                ast::Value::Boolean(b) => types::Value::Boolean(*b),
-                ast::Value::Null => types::Value::Null,
-                _ => todo!(),
-            }),
+            Expr::Value(literal) => Constant(Value::from_expr_value(literal)),
             Expr::BinaryOp { left, op, right } => match op {
                 ast::BinaryOperator::Or => Or(
                     self.build_expression(left, scope)?.into(),
@@ -422,7 +410,33 @@ impl Scope {
 
     /// Projects the scope. This takes a set of expressions and labels in the current scope,
     /// and returns a new scope for the projection.
-    fn project(&mut self, _projection: &[(Expression, Option<String>)]) -> Result<()> {
+    /// rebuild scope by projection
+    fn project(&mut self, projection: &[(Expression, Option<String>)]) -> Result<()> {
+        if self.constant {
+            return Err(Error::Internal("Can't modify constant scope".into()));
+        }
+        let mut new = Self::new();
+        new.tables = self.tables.clone();
+        for (expr, label) in projection {
+            match (expr, label) {
+                (_, Some(label)) => new.add_column(None, Some(label.clone())),
+                (Expression::Field(_, Some((Some(table), name))), _) => {
+                    new.add_column(Some(table.clone()), Some(name.clone()))
+                },
+                (Expression::Field(_, Some((None, name))), _) => {
+                    if let Some(i) = self.unqualified.get(name) {
+                        let (table, name) = self.columns[*i].clone();
+                        new.add_column(table, name);
+                    }
+                },
+                (Expression::Field(i, None), _) => {
+                    let (table, label) = self.columns.get(*i).cloned().unwrap_or((None, None));
+                    new.add_column(table, label);
+                },
+                _ => new.add_column(None, None)
+            }
+        }
+        *self = new;
         Ok(())
     }
 }
