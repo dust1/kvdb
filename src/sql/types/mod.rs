@@ -4,6 +4,13 @@ use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use sqlparser::ast::Expr;
 use sqlparser::ast::Value as ExprValue;
+use crate::error::Result;
+
+/// a row of values
+pub type Row = Vec<Value>;
+
+/// a row of iterator
+pub type Rows = Box<dyn Iterator<Item = Result<Row>> + Send>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Value {

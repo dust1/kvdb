@@ -1,11 +1,18 @@
 use crate::error::Result;
 use crate::sql::parser::KVParser;
-use sqlparser::ast::Statement;
-use sqlparser::dialect::GenericDialect;
-use sqlparser::parser::Parser;
+
+
+
 use crate::sql::plan::Plan;
-use crate::sql::plan::planner::Planner;
+
 use crate::sql::schema::{Catalog, Table};
+
+#[test]
+fn test() -> Result<()> {
+    let sql = "SELECT SELECT WHERE ORDER BY LIMIT";
+    parser_sql(sql);
+    Ok(())
+}
 
 #[test]
 fn test_plan() -> Result<()> {
@@ -97,8 +104,11 @@ fn test_parser() -> Result<()> {
 }
 
 fn parser_sql(sql: &str) -> Result<()> {
-    let parser = KVParser::build(sql)?;
-    println!("{:?}", parser);
+    let parser = KVParser::build(sql);
+    match parser {
+        Ok(p) => println!("{:?}", p),
+        Err(e) => println!("Error: =>>>> {:?}", e)
+    }
     Ok(())
 }
 
@@ -111,7 +121,7 @@ impl TestLog {
 }
 
 impl Catalog for TestLog {
-    fn read_table(&self, table: &str) -> Result<Option<Table>> {
+    fn read_table(&self, _table: &str) -> Result<Option<Table>> {
         todo!()
     }
 }
@@ -119,6 +129,6 @@ impl Catalog for TestLog {
 fn plan_sql(sql: &str) -> Result<()> {
     let statement = KVParser::build(sql)?.parser()?;
     let mut test_log = TestLog::new();
-    let plan = Plan::build(statement, &mut test_log)?;
+    let _plan = Plan::build(statement, &mut test_log)?;
     Ok(())
 }

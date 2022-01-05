@@ -1,6 +1,8 @@
 mod btree;
 mod memory;
 mod range;
+mod mvcc;
+pub mod kv;
 
 #[cfg(test)]
 mod test;

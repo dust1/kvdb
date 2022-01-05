@@ -5,6 +5,10 @@ use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
+
+    /// Create a new Tablej
+    fn create_table(&mut self, table: Table) -> Result<()>;
+
     /// Read a table, if it exists
     fn read_table(&self, table: &str) -> Result<Option<Table>>;
 
@@ -48,6 +52,12 @@ impl Table {
         let columns = columns.iter().map(Column::from_column_def).collect::<Vec<_>>();
         Ok(Table { name: table_name, columns })
     }
+
+    /// Validates the table schema
+    pub fn validate(&self) -> Result<()> {
+        todo!()
+    }
+
 }
 
 impl Column {

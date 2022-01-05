@@ -1,7 +1,7 @@
-mod engine;
-mod parser;
-mod plan;
-mod schema;
+pub mod engine;
+pub mod parser;
+pub mod plan;
+pub mod schema;
 pub mod types;
 
 #[cfg(test)]
