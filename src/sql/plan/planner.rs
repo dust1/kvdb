@@ -3,11 +3,11 @@ use crate::sql::parser::ast::KVStatement;
 use crate::sql::plan::{Node, Plan};
 use crate::sql::schema::{Catalog, Table};
 use crate::sql::types::expression::Expression;
+use crate::sql::types::Value;
 use sqlparser::ast::{
     Expr, Ident, Join, Query, Select, SelectItem, SetExpr, TableFactor, TableWithJoins,
 };
 use std::collections::{HashMap, HashSet};
-use crate::sql::types::Value;
 
 /// query plan builder
 pub struct Planner<'a, C: Catalog> {
@@ -422,18 +422,18 @@ impl Scope {
                 (_, Some(label)) => new.add_column(None, Some(label.clone())),
                 (Expression::Field(_, Some((Some(table), name))), _) => {
                     new.add_column(Some(table.clone()), Some(name.clone()))
-                },
+                }
                 (Expression::Field(_, Some((None, name))), _) => {
                     if let Some(i) = self.unqualified.get(name) {
                         let (table, name) = self.columns[*i].clone();
                         new.add_column(table, name);
                     }
-                },
+                }
                 (Expression::Field(i, None), _) => {
                     let (table, label) = self.columns.get(*i).cloned().unwrap_or((None, None));
                     new.add_column(table, label);
-                },
-                _ => new.add_column(None, None)
+                }
+                _ => new.add_column(None, None),
             }
         }
         *self = new;

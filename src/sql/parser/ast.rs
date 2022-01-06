@@ -58,7 +58,9 @@ impl KVStatement {
             Statement::CreateTable { name, columns, .. } => {
                 KVStatement::CreateTable { name, columns }
             }
-            Statement::Drop { names, object_type: ObjectType::Table, .. } => KVStatement::DropTable { names },
+            Statement::Drop { names, object_type: ObjectType::Table, .. } => {
+                KVStatement::DropTable { names }
+            }
             _ => todo!(),
         }
     }

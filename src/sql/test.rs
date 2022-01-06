@@ -1,8 +1,6 @@
 use crate::error::Result;
 use crate::sql::parser::KVParser;
 
-
-
 use crate::sql::plan::Plan;
 
 use crate::sql::schema::{Catalog, Table};
@@ -107,7 +105,7 @@ fn parser_sql(sql: &str) -> Result<()> {
     let parser = KVParser::build(sql);
     match parser {
         Ok(p) => println!("{:?}", p),
-        Err(e) => println!("Error: =>>>> {:?}", e)
+        Err(e) => println!("Error: =>>>> {:?}", e),
     }
     Ok(())
 }

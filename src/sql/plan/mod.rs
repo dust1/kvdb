@@ -87,7 +87,7 @@ impl Node {
             }
             _ => {
                 // do nothing
-            },
+            }
         };
         if root {
             s = s.trim_end().to_string()

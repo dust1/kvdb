@@ -5,7 +5,6 @@ use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
-
     /// Create a new Tablej
     fn create_table(&mut self, table: Table) -> Result<()>;
 
@@ -57,7 +56,6 @@ impl Table {
     pub fn validate(&self) -> Result<()> {
         todo!()
     }
-
 }
 
 impl Column {
@@ -70,7 +68,7 @@ impl Column {
             default: None,
             unique: false,
             references: None,
-            index: false
+            index: false,
         };
 
         for column_d in &column_def.options {
@@ -78,13 +76,15 @@ impl Column {
                 ColumnOption::Null => column.nullable = true,
                 ColumnOption::NotNull => column.nullable = false,
                 ColumnOption::Default(expr) => column.default = Some(Value::from_expr(expr)),
-                ColumnOption::Unique{is_primary: true} => {
+                ColumnOption::Unique { is_primary: true } => {
                     column.unique = true;
                     column.primary_key = true;
                     column.index = true;
-                },
-                ColumnOption::Unique {..} => column.unique = true,
-                ColumnOption::ForeignKey {foreign_table, ..} => column.references = Some(foreign_table.to_string()),
+                }
+                ColumnOption::Unique { .. } => column.unique = true,
+                ColumnOption::ForeignKey { foreign_table, .. } => {
+                    column.references = Some(foreign_table.to_string())
+                }
                 _ => {}
             }
         }

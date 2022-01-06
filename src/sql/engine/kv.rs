@@ -1,16 +1,17 @@
+use crate::error::{Error, Result};
+use crate::sql::schema::{Catalog, Table};
+use crate::storage::kv::encoding::{encode_bytes, encode_string};
+use crate::storage::kv::engine::KVStoreEngine;
+use crate::storage::Store;
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
-use serde::{Deserialize, Serialize};
-use crate::error::{Error, Result}:
-use crate::sql::schema::{Catalog, Table};
-use crate::storage::kv::KVStoreEngine;
-use crate::storage::Store;
 
 /// A SQL engine based KVStoreEngine
 pub struct KV {
     /// access control, only allow the super-level directory to be
     /// able to access, avoid the user to call outside the program
-    pub(super) kv: KVStoreEngine
+    pub(super) kv: KVStoreEngine,
 }
 
 impl Clone for KV {
@@ -25,13 +26,9 @@ enum Key<'a> {
 }
 
 impl KV {
-
     pub fn new(kv: KVStoreEngine) -> Self {
-        Self {
-            kv
-        }
+        Self { kv }
     }
-
 }
 
 impl Catalog for KV {
@@ -45,17 +42,18 @@ impl Catalog for KV {
     }
 
     fn read_table(&self, table: &str) -> crate::error::Result<Option<Table>> {
-        todo!()
+        self.kv.get(&Key::Table(Some(table.into())).encode())?.map(|v| deserialize(&v)).transpose()
     }
 }
 
 impl<'a> Key<'a> {
-
     /// encode the key as a byte vector
     fn encode(self) -> Vec<u8> {
-        todo!()
+        match self {
+            Self::Table(None) => vec![0x01],
+            Self::Table(Some(name)) => [&[0x01][..], &encode_string(&name)].concat(),
+        }
     }
-
 }
 
 /// Serializes SQL metadata.

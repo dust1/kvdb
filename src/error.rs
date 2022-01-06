@@ -66,3 +66,9 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
         Error::Internal(err.to_string())
     }
 }
+
+impl From<Box<bincode::ErrorKind>> for Error {
+    fn from(err: Box<bincode::ErrorKind>) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
