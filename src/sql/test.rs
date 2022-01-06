@@ -119,6 +119,10 @@ impl TestLog {
 }
 
 impl Catalog for TestLog {
+    fn create_table(&mut self, table: Table) -> Result<()> {
+        todo!()
+    }
+
     fn read_table(&self, _table: &str) -> Result<Option<Table>> {
         todo!()
     }

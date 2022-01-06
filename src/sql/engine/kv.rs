@@ -1,11 +1,11 @@
 use crate::error::{Error, Result};
 use crate::sql::schema::{Catalog, Table};
-use crate::storage::kv::encoding::{encode_bytes, encode_string};
+use crate::storage::kv::encoding::{encode_string};
 use crate::storage::kv::engine::KVStoreEngine;
 use crate::storage::Store;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::sync::{Arc, RwLock};
+
 
 /// A SQL engine based KVStoreEngine
 pub struct KV {
