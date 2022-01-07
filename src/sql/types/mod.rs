@@ -60,6 +60,17 @@ impl Value {
     pub fn parse_string(n: &str) -> Value {
         Value::String(n.to_owned())
     }
+
+    /// Returns the value's datatype, or None for null values
+    pub fn datatype(&self) -> Option<DataType> {
+        match self {
+            Self::Null => None,
+            Self::Boolean(_) => Some(DataType::Boolean),
+            Self::String(_) => Some(DataType::String),
+            Self::Float(_) => Some(DataType::Float),
+            Self::Integer(_) => Some(DataType::Integer),
+        }
+    }
 }
 
 impl Display for Value {
@@ -75,6 +86,17 @@ impl Display for Value {
             }
             .as_ref(),
         )
+    }
+}
+
+impl Display for DataType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Integer => "INTEGER",
+            Self::Float => "FLOAT",
+            Self::String => "STRING",
+            Self::Boolean => "BOOLEAN",
+        })
     }
 }
 

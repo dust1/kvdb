@@ -1,7 +1,9 @@
+use std::fmt::format;
 use crate::error::{Error, Result};
 use crate::sql::types::{DataType, Value};
 use serde_derive::{Deserialize, Serialize};
 use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
+use crate::sql::engine::kv::KV;
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
@@ -39,7 +41,7 @@ pub struct Column {
     pub default: Option<Value>,
     /// Whether the column should only take unique values
     pub unique: bool,
-    /// The table which is referenced by this foreign key
+    /// The table which is referenced by this foreign key, link other table's primary key
     pub references: Option<String>,
     /// Whether the column should be indexed
     pub index: bool,
@@ -53,9 +55,31 @@ impl Table {
     }
 
     /// Validates the table schema
-    pub fn validate(&self) -> Result<()> {
-        todo!()
+    pub fn validate(&self, kv: &KV) -> Result<()> {
+        if self.columns.is_empty() {
+            return Err(Error::Value(format!("table {} has no columns", self.name)));
+        }
+        match self.columns.iter().filter(|c| c.primary_key).count() {
+            1 => {},
+            0 => return Err(Error::Value(format!("no primary key in table {}", self.name))),
+            _ => return Err(Error::Value(format!("Multiple primary keys in table {}", self.name))),
+        }
+        for column in &self.columns {
+            column.validate(self, kv)?;
+        }
+
+        Ok(())
     }
+
+    /// returns the primary key column of the table
+    pub fn get_primary_key(&self) -> Result<&Column> {
+        self.columns.iter()
+            .find(|c| c.primary_key)
+            .ok_or_else(|| Error::Value(format!(
+                "Primary key not found in table {}", self.name
+            )))
+    }
+
 }
 
 impl Column {
@@ -90,4 +114,63 @@ impl Column {
         }
         column
     }
+
+    /// validates the column schema
+    pub fn validate(&self, table: &Table, kv: &KV) -> Result<()> {
+        if self.primary_key && self.nullable {
+            return Err(Error::Value(format!("Primary key {} can not be nullable", self.name)));
+        }
+        if self.primary_key && !self.unique {
+            return Err(Error::Value(format!("Primary key {} should be unique", self.name)));
+        }
+
+        // validate default value
+        if let Some(default) = &self.default {
+            if let Some(datatype) = default.datatype() {
+                if datatype != self.datatype {
+                    return Err(Error::Value(format!(
+                        "Default value for column {} has datatype {}, must be {}",
+                        self.name, datatype, self.datatype
+                    )));
+                }
+            } else if !self.nullable {
+                return Err(Error::Value(format!(
+                    "Can not use NULL as default value for nun-nullable column {}",
+                    self.name
+                )));
+            }
+        } else if self.nullable {
+            return Err(Error::Value(format!(
+                "Nullable column {} must have a default value",
+                self.name
+            )));
+        }
+
+        // validate reference
+        if let Some(reference) = &self.references {
+            let target = if reference == &table.name {
+                table.clone()
+            } else if let Some(table) = kv.read_table(reference)? {
+                table
+            } else {
+                return Err(Error::Value(format!(
+                    "Table {} reference by column {} does not exist.",
+                    reference, self.name
+                )))
+            };
+
+            if self.datatype != target.get_primary_key()?.datatype {
+                return Err(Error::Value(format!(
+                    "Can not reference {} primary key of table {} from {} column {}",
+                    target.get_primary_key()?.datatype,
+                    target.name,
+                    self.datatype,
+                    self.name
+                )))
+            }
+        }
+
+        Ok(())
+    }
+
 }

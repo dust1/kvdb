@@ -37,7 +37,7 @@ impl Catalog for KV {
             return Err(Error::Value(format!("Table {} already exists", table.name)));
         }
 
-        table.validate()?;
+        table.validate(self)?;
         self.kv.set(&Key::Table(Some((&table.name).into())).encode(), serialize(&table)?)
     }
 

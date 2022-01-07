@@ -64,7 +64,7 @@ impl Display for Expression {
             Self::Subtract(lhs, rhs) => format!("{} - {}", lhs, rhs),
 
             Self::Like(lhs, rhs) => format!("{} LIKE {}", lhs, rhs),
-            Self::Wildcard => format!("*"),
+            Self::Wildcard => "*".to_string(),
         };
         write!(f, "{}", s)
     }
