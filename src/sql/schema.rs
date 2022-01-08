@@ -4,14 +4,21 @@ use crate::sql::types::{DataType, Value};
 use serde_derive::{Deserialize, Serialize};
 use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
 use crate::sql::engine::kv::KV;
+use crate::sql::engine::Scan;
+use crate::sql::types::expression::Expression;
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
     /// Create a new Tablej
     fn create_table(&mut self, table: Table) -> Result<()>;
 
+    /// Delete a table
+    fn delete_table(&mut self, table: &str) -> Result<()>;
+
     /// Read a table, if it exists
     fn read_table(&self, table: &str) -> Result<Option<Table>>;
+
+    fn scan(&self, table: &str, filter: Option<Expression>) -> Result<Scan>;
 
     /// Read a table, and error if it does not exists
     fn must_read_table(&self, table: &str) -> Result<Table> {

@@ -5,6 +5,8 @@ use crate::storage::kv::engine::KVStoreEngine;
 use crate::storage::Store;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use crate::sql::engine::Scan;
+use crate::sql::types::expression::Expression;
 
 
 /// A SQL engine based KVStoreEngine
@@ -41,8 +43,16 @@ impl Catalog for KV {
         self.kv.set(&Key::Table(Some((&table.name).into())).encode(), serialize(&table)?)
     }
 
+    fn delete_table(&mut self, table: &str) -> Result<()> {
+        todo!()
+    }
+
     fn read_table(&self, table: &str) -> crate::error::Result<Option<Table>> {
         self.kv.get(&Key::Table(Some(table.into())).encode())?.map(|v| deserialize(&v)).transpose()
+    }
+
+    fn scan(&self, table: &str, filter: Option<Expression>) -> Result<Scan> {
+        todo!()
     }
 }
 

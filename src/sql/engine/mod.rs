@@ -1,10 +1,10 @@
 pub mod kv;
 
 use crate::error::Result;
+use crate::sql::types::Row;
 
-
-
-
+/// a row scan iterator
+pub type Scan = Box<dyn DoubleEndedIterator<Item = Result<Row>> + Send>;
 
 /// the sql engine interface
 pub trait Engine: Clone {
@@ -19,3 +19,5 @@ pub struct Session<E: Engine> {
     /// the sql engine
     engine: E,
 }
+
+

@@ -1,9 +1,11 @@
 pub mod planner;
+mod optimizer;
 
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 use crate::error::Result;
+use crate::sql::execution::{Executor, ResultSet};
 use crate::sql::parser::ast::KVStatement;
 use crate::sql::plan::planner::Planner;
 use crate::sql::schema::{Catalog, Table};
@@ -20,9 +22,23 @@ impl Display for Plan {
 }
 
 impl Plan {
+
+    /// build plan with statement
     pub fn build<C: Catalog>(statement: KVStatement, catalog: &mut C) -> Result<Self> {
         Planner::new(catalog).build(statement)
     }
+
+    /// optimize the plan
+    pub fn optimize<C: Catalog>(self, _catalog: &mut C) -> Result<Self> {
+        // todo
+        Ok(self)
+    }
+
+    /// execute the plan
+    pub fn execute<C: Catalog + 'static>(self, kv: &mut C) -> Result<ResultSet> {
+        <dyn Executor<C>>::build(self.0).execute(kv)
+    }
+
 }
 
 /// Plan Node
