@@ -1,8 +1,8 @@
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
-use crate::sql::types::{Row, Value};
 use crate::error::Result;
+use crate::sql::types::{Row, Value};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expression {
@@ -79,7 +79,7 @@ impl Expression {
             // constant value
             Self::Constant(c) => c.clone(),
             Self::Field(i, _) => row.and_then(|row| row.get(*i).cloned()).unwrap_or(Null),
-            _ => todo!()
+            _ => todo!(),
         })
     }
 }

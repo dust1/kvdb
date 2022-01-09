@@ -1,18 +1,18 @@
-pub mod source;
-pub mod schema;
-pub mod query;
 pub mod mutation;
+pub mod query;
+pub mod schema;
+pub mod source;
 
-use derivative::Derivative;
 use crate::error::Result;
-use serde_derive::{Deserialize, Serialize};
 use crate::sql::execution::mutation::Insert;
+use crate::sql::execution::query::{Filter, Projection};
 use crate::sql::execution::schema::{CreateTable, DropTable};
 use crate::sql::execution::source::{Nothing, Scan};
-use crate::sql::execution::query::{Filter, Projection};
 use crate::sql::plan::Node;
 use crate::sql::schema::Catalog;
 use crate::sql::types::{Columns, Rows};
+use derivative::Derivative;
+use serde_derive::{Deserialize, Serialize};
 
 /// a plan executor
 pub trait Executor<C: Catalog> {
@@ -26,15 +26,15 @@ pub trait Executor<C: Catalog> {
 pub enum ResultSet {
     // rows created
     Create {
-        count: u64
+        count: u64,
     },
     // table created
     CreateTable {
-        name: String
+        name: String,
     },
     // table drop
     DropTable {
-        name: String
+        name: String,
     },
     // query result
     Query {
@@ -42,27 +42,29 @@ pub enum ResultSet {
         #[derivative(Debug = "ignore")]
         #[derivative(PartialEq = "ignore")]
         #[serde(skip, default = "ResultSet::empty_rows")]
-        rows: Rows
+        rows: Rows,
     },
     // Explain result
-    Explain(Node)
+    Explain(Node),
 }
 
 impl<C: Catalog + 'static> dyn Executor<C> {
-
     /// builds an executor for a plan node, consuming it
     pub fn build(node: Node) -> Box<dyn Executor<C>> {
         match node {
             Node::Nothing => Nothing::new(),
-            Node::CreateTable {schema} => CreateTable::new(schema),
-            Node::DropTable {table} => DropTable::new(table),
-            Node::Scan {table, alias: _, filter} => Scan::new(table, filter),
-            Node::Filter {source, predicate} => Filter::new(Self::build(*source), predicate),
-            Node::Projection {source, expressions} => Projection::new(Self::build(*source), expressions),
-            Node::Insert {table, columns, expressions} => Insert::new(table, columns, expressions),
+            Node::CreateTable { schema } => CreateTable::new(schema),
+            Node::DropTable { table } => DropTable::new(table),
+            Node::Scan { table, alias: _, filter } => Scan::new(table, filter),
+            Node::Filter { source, predicate } => Filter::new(Self::build(*source), predicate),
+            Node::Projection { source, expressions } => {
+                Projection::new(Self::build(*source), expressions)
+            }
+            Node::Insert { table, columns, expressions } => {
+                Insert::new(table, columns, expressions)
+            }
         }
     }
-
 }
 
 impl ResultSet {

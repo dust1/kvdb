@@ -1,5 +1,5 @@
-use crate::sql::plan::Node;
 use crate::error::Result;
+use crate::sql::plan::Node;
 use crate::sql::schema::Catalog;
 
 /// a plan optimizer
@@ -16,7 +16,7 @@ pub struct FilterPushdown;
 
 /// An index lookup optimizer, which converts table scans to index lookups
 pub struct IndexLookup<'a, C: Catalog> {
-    catalog: &'a mut C
+    catalog: &'a mut C,
 }
 
 /// Cleans up noops, e.g. filters with constant true/false predicates.

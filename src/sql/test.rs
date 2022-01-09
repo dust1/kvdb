@@ -20,7 +20,7 @@ fn test_plan() -> Result<()> {
     let sqls = [
         "CREATE TABLE movies (id INTEGER PRIMARY KEY, title VARCHAR NOT NULL);",
         "INSERT INTO movies VALUES (1, 'Sicario'), (2, 'Stalker'), (3, 'Her');",
-        "SELECT * FROM movies;"
+        "SELECT * FROM movies;",
     ];
 
     for sql in sqls {
@@ -102,7 +102,6 @@ fn parser_sql(sql: &str) -> Result<()> {
     }
     Ok(())
 }
-
 
 fn plan_sql(sql: &str) -> Result<()> {
     let store = Box::new(Memory::new());

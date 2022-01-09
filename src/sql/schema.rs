@@ -1,11 +1,11 @@
-use std::fmt::format;
 use crate::error::{Error, Result};
-use crate::sql::types::{DataType, Row, Value};
-use serde_derive::{Deserialize, Serialize};
-use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
 use crate::sql::engine::kv::KV;
 use crate::sql::engine::Scan;
 use crate::sql::types::expression::Expression;
+use crate::sql::types::{DataType, Row, Value};
+use serde_derive::{Deserialize, Serialize};
+use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
+use std::fmt::format;
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
@@ -71,7 +71,7 @@ impl Table {
             return Err(Error::Value(format!("table {} has no columns", self.name)));
         }
         match self.columns.iter().filter(|c| c.primary_key).count() {
-            1 => {},
+            1 => {}
             0 => return Err(Error::Value(format!("no primary key in table {}", self.name))),
             _ => return Err(Error::Value(format!("Multiple primary keys in table {}", self.name))),
         }
@@ -84,13 +84,11 @@ impl Table {
 
     /// returns the primary key column of the table
     pub fn get_primary_key(&self) -> Result<&Column> {
-        self.columns.iter()
+        self.columns
+            .iter()
             .find(|c| c.primary_key)
-            .ok_or_else(|| Error::Value(format!(
-                "Primary key not found in table {}", self.name
-            )))
+            .ok_or_else(|| Error::Value(format!("Primary key not found in table {}", self.name)))
     }
-
 }
 
 impl Column {
@@ -167,7 +165,7 @@ impl Column {
                 return Err(Error::Value(format!(
                     "Table {} reference by column {} does not exist.",
                     reference, self.name
-                )))
+                )));
             };
 
             if self.datatype != target.get_primary_key()?.datatype {
@@ -177,11 +175,10 @@ impl Column {
                     target.name,
                     self.datatype,
                     self.name
-                )))
+                )));
             }
         }
 
         Ok(())
     }
-
 }

@@ -1,5 +1,5 @@
-pub mod planner;
 mod optimizer;
+pub mod planner;
 
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
@@ -22,7 +22,6 @@ impl Display for Plan {
 }
 
 impl Plan {
-
     /// build plan with statement
     pub fn build<C: Catalog>(statement: KVStatement, catalog: &mut C) -> Result<Self> {
         Planner::new(catalog).build(statement)
@@ -38,7 +37,6 @@ impl Plan {
     pub fn execute<C: Catalog + 'static>(self, kv: &mut C) -> Result<ResultSet> {
         <dyn Executor<C>>::build(self.0).execute(kv)
     }
-
 }
 
 /// Plan Node

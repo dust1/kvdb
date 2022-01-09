@@ -1,24 +1,20 @@
-use std::collections::HashMap;
+use crate::error::{Error, Result};
 use crate::sql::execution::{Executor, ResultSet};
 use crate::sql::schema::{Catalog, Table};
 use crate::sql::types::expression::Expression;
-use crate::error::{Error, Result};
 use crate::sql::types::{DataType, Row, Value};
+use std::collections::HashMap;
 
 /// An INSERT Executor
 pub struct Insert {
     table: String,
     columns: Vec<String>,
-    rows: Vec<Vec<Expression>>
+    rows: Vec<Vec<Expression>>,
 }
 
 impl Insert {
     pub fn new(table: String, columns: Vec<String>, rows: Vec<Vec<Expression>>) -> Box<Self> {
-        Box::new(Self {
-            table,
-            columns,
-            rows
-        })
+        Box::new(Self { table, columns, rows })
     }
 
     /// build a row from a set of column names and values,
@@ -35,17 +31,14 @@ impl Insert {
                     let push_value = &values[index];
                     row.push(push_value.clone());
                     index += 1;
-                },
+                }
                 _ if column.default.is_some() => {
                     if let Some(default) = &column.default {
                         row.push(default.clone());
                     }
-                },
+                }
                 _ => {
-                    return Err(Error::Value(format!(
-                        "Column {} not have default",
-                        column.name
-                    )));
+                    return Err(Error::Value(format!("Column {} not have default", column.name)));
                 }
             }
         }
@@ -62,12 +55,12 @@ impl Insert {
                         "The column {} not have default value",
                         column.name
                     )));
-                },
+                }
                 (Some(default), None) => {
                     // append in the end
                     row.push(default.clone());
                     row_index += 1;
-                },
+                }
                 (None, Some(value)) => {
                     if let Some(datatype) = value.datatype() {
                         if datatype != column.datatype {
@@ -84,7 +77,7 @@ impl Insert {
                             value
                         )));
                     }
-                },
+                }
                 (Some(default), Some(value)) => {
                     if let Some(datatype) = value.datatype() {
                         if datatype != column.datatype {
@@ -126,6 +119,6 @@ impl<C: Catalog> Executor<C> for Insert {
             catalog.create(&table.name, row)?;
             count += 1;
         }
-        Ok(ResultSet::Create {count})
+        Ok(ResultSet::Create { count })
     }
 }

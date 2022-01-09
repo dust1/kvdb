@@ -15,7 +15,7 @@ pub type Rows = Box<dyn Iterator<Item = Result<Row>> + Send>;
 /// a column (in a result set, see schema::Column for table columns)
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Column {
-    pub name: Option<String>
+    pub name: Option<String>,
 }
 
 /// a set of columns
@@ -127,5 +127,3 @@ impl DataType {
         }
     }
 }
-
-

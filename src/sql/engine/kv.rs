@@ -1,14 +1,13 @@
 use crate::error::{Error, Result};
+use crate::sql::engine::Scan;
 use crate::sql::schema::{Catalog, Table};
-use crate::storage::kv::encoding::{encode_string};
+use crate::sql::types::expression::Expression;
+use crate::sql::types::Row;
+use crate::storage::kv::encoding::encode_string;
 use crate::storage::kv::engine::KVStoreEngine;
 use crate::storage::Store;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use crate::sql::engine::Scan;
-use crate::sql::types::expression::Expression;
-use crate::sql::types::Row;
-
 
 /// A SQL engine based KVStoreEngine
 pub struct KV {
