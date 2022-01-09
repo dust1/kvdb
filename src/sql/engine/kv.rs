@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use crate::sql::engine::Scan;
 use crate::sql::types::expression::Expression;
+use crate::sql::types::Row;
 
 
 /// A SQL engine based KVStoreEngine
@@ -52,6 +53,10 @@ impl Catalog for KV {
     }
 
     fn scan(&self, table: &str, filter: Option<Expression>) -> Result<Scan> {
+        todo!()
+    }
+
+    fn create(&mut self, table: &str, row: Row) -> Result<()> {
         todo!()
     }
 }
