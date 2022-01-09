@@ -1,6 +1,6 @@
 use std::fmt::format;
 use crate::error::{Error, Result};
-use crate::sql::types::{DataType, Value};
+use crate::sql::types::{DataType, Row, Value};
 use serde_derive::{Deserialize, Serialize};
 use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
 use crate::sql::engine::kv::KV;
@@ -9,7 +9,7 @@ use crate::sql::types::expression::Expression;
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
-    /// Create a new Tablej
+    /// Create a new Table
     fn create_table(&mut self, table: Table) -> Result<()>;
 
     /// Delete a table
@@ -18,7 +18,11 @@ pub trait Catalog {
     /// Read a table, if it exists
     fn read_table(&self, table: &str) -> Result<Option<Table>>;
 
+    /// scan a table
     fn scan(&self, table: &str, filter: Option<Expression>) -> Result<Scan>;
+
+    /// create a new table row
+    fn create(&mut self, table: &str, row: Row) -> Result<()>;
 
     /// Read a table, and error if it does not exists
     fn must_read_table(&self, table: &str) -> Result<Table> {

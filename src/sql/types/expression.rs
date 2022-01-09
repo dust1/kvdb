@@ -1,7 +1,8 @@
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
-use crate::sql::types::Value;
+use crate::sql::types::{Row, Value};
+use crate::error::Result;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expression {
@@ -67,5 +68,18 @@ impl Display for Expression {
             Self::Wildcard => "*".to_string(),
         };
         write!(f, "{}", s)
+    }
+}
+
+impl Expression {
+    /// evaluate an expression to a value
+    pub fn evaluate(&self, row: Option<&Row>) -> Result<Value> {
+        use Value::*;
+        Ok(match self {
+            // constant value
+            Self::Constant(c) => c.clone(),
+            Self::Field(i, _) => row.and_then(|row| row.get(*i).cloned()).unwrap_or(Null),
+            _ => todo!()
+        })
     }
 }
