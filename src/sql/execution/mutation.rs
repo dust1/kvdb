@@ -2,8 +2,8 @@ use crate::error::{Error, Result};
 use crate::sql::execution::{Executor, ResultSet};
 use crate::sql::schema::{Catalog, Table};
 use crate::sql::types::expression::Expression;
-use crate::sql::types::{DataType, Row, Value};
-use std::collections::HashMap;
+use crate::sql::types::{Row, Value};
+
 
 /// An INSERT Executor
 pub struct Insert {

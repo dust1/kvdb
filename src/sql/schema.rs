@@ -5,7 +5,7 @@ use crate::sql::types::expression::Expression;
 use crate::sql::types::{DataType, Row, Value};
 use serde_derive::{Deserialize, Serialize};
 use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
-use std::fmt::format;
+
 
 ///TODO The catalog stores schema information
 pub trait Catalog {
