@@ -6,8 +6,10 @@ use crate::sql::types::{DataType, Row, Value};
 use serde_derive::{Deserialize, Serialize};
 use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
 
+pub type Tables = Box<dyn DoubleEndedIterator<Item = Table> + Send>;
 
-///TODO The catalog stores schema information
+/// the catalog stores schema infotmation
+/// it just manager table
 pub trait Catalog {
     /// Create a new Table
     fn create_table(&mut self, table: Table) -> Result<()>;
@@ -18,11 +20,36 @@ pub trait Catalog {
     /// Read a table, if it exists
     fn read_table(&self, table: &str) -> Result<Option<Table>>;
 
-    /// scan a table
+    /// return all reference to a table, as table, column pairs
+    fn table_reference(&self, table: &str, with_self: bool) -> Result<Vec<(String, Vec<String>)>> {
+        Ok(self.scan_table()?
+            .filter(|t| with_self || t.name != table)
+            .map(|t| {
+                (
+                    t.name,
+                    t.columns
+                        .iter()
+                        .filter(|c| c.references.as_deref() == Some(table))
+                        .map(|c| c.name.clone())
+                        .collect::<Vec<_>>(),
+                    )
+            })
+            .filter(|(_, cs)| !cs.is_empty())
+            .collect()
+        )
+    }
+
+    /// scan all table
+    fn scan_table(&self) -> Result<Tables>;
+
+    /// scan a table's row
     fn scan(&self, table: &str, filter: Option<Expression>) -> Result<Scan>;
 
     /// create a new table row
     fn create(&mut self, table: &str, row: Row) -> Result<()>;
+
+    /// delete a table row
+    fn delete(&mut self, table: &str, id: &Value) -> Result<()>;
 
     /// Read a table, and error if it does not exists
     fn must_read_table(&self, table: &str) -> Result<Table> {
@@ -89,6 +116,23 @@ impl Table {
             .find(|c| c.primary_key)
             .ok_or_else(|| Error::Value(format!("Primary key not found in table {}", self.name)))
     }
+
+    /// return the primary key value in data row
+    pub fn get_row_key(&self, row: &Row) -> Result<Value> {
+        row.get(
+            self.columns
+                .iter()
+                .position(|c| c.primary_key)
+                .ok_or_else(|| Error::Value(format!(
+                    "Primary key not found in {}",
+                    self.name
+                )))
+        ).cloned()
+            .ok_or_else(|| Error::Value(
+                "Primary key value not found for row".into()
+            ))
+    }
+
 }
 
 impl Column {

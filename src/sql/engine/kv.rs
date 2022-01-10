@@ -1,8 +1,8 @@
 use crate::error::{Error, Result};
 use crate::sql::engine::Scan;
-use crate::sql::schema::{Catalog, Table};
+use crate::sql::schema::{Catalog, Table, Tables};
 use crate::sql::types::expression::Expression;
-use crate::sql::types::Row;
+use crate::sql::types::{Row, Value};
 use crate::storage::kv::encoding::encode_string;
 use crate::storage::kv::engine::KVStoreEngine;
 use crate::storage::Store;
@@ -43,12 +43,27 @@ impl Catalog for KV {
         self.kv.set(&Key::Table(Some((&table.name).into())).encode(), serialize(&table)?)
     }
 
-    fn delete_table(&mut self, _table: &str) -> Result<()> {
-        todo!()
+    fn delete_table(&mut self, table: &str) -> Result<()> {
+        let table = self.must_read_table(table)?;
+        if let Some((name, columns)) = self.table_reference(&table.name, false)?.first() {
+            return Err(Error::Value(format!(
+                "Table {}'s column {} was referenced this table {}",
+                name, columns[0], &table.name
+            )));
+        }
+        let mut scan = self.scan(&table.name, None)?;
+        while let Some(row) = scan.next().transpose()? {
+            self.delete(&table.name, &table.get_row_key(&row)?)?;
+        }
+        self.kv.delete(&Key::Table(Some(table.name.into())).encode())
     }
 
     fn read_table(&self, table: &str) -> crate::error::Result<Option<Table>> {
         self.kv.get(&Key::Table(Some(table.into())).encode())?.map(|v| deserialize(&v)).transpose()
+    }
+
+    fn scan_table(&self) -> Result<Tables> {
+        todo!()
     }
 
     fn scan(&self, _table: &str, _filter: Option<Expression>) -> Result<Scan> {
@@ -56,6 +71,10 @@ impl Catalog for KV {
     }
 
     fn create(&mut self, _table: &str, _row: Row) -> Result<()> {
+        todo!()
+    }
+
+    fn delete(&mut self, table: &str, id: &Value) -> Result<()> {
         todo!()
     }
 }
