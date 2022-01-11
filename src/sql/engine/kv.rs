@@ -74,7 +74,7 @@ impl Catalog for KV {
         todo!()
     }
 
-    fn delete(&mut self, table: &str, id: &Value) -> Result<()> {
+    fn delete(&mut self, _table: &str, _id: &Value) -> Result<()> {
         todo!()
     }
 }

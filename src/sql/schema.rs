@@ -22,7 +22,8 @@ pub trait Catalog {
 
     /// return all reference to a table, as table, column pairs
     fn table_reference(&self, table: &str, with_self: bool) -> Result<Vec<(String, Vec<String>)>> {
-        Ok(self.scan_table()?
+        Ok(self
+            .scan_table()?
             .filter(|t| with_self || t.name != table)
             .map(|t| {
                 (
@@ -32,11 +33,10 @@ pub trait Catalog {
                         .filter(|c| c.references.as_deref() == Some(table))
                         .map(|c| c.name.clone())
                         .collect::<Vec<_>>(),
-                    )
+                )
             })
             .filter(|(_, cs)| !cs.is_empty())
-            .collect()
-        )
+            .collect())
     }
 
     /// scan all table
@@ -119,20 +119,15 @@ impl Table {
 
     /// return the primary key value in data row
     pub fn get_row_key(&self, row: &Row) -> Result<Value> {
-        row.get(
-            self.columns
-                .iter()
-                .position(|c| c.primary_key)
-                .ok_or_else(|| Error::Value(format!(
-                    "Primary key not found in {}",
-                    self.name
-                )))
-        ).cloned()
-            .ok_or_else(|| Error::Value(
-                "Primary key value not found for row".into()
-            ))
+        let index = self
+            .columns
+            .iter()
+            .position(|c| c.primary_key)
+            .ok_or_else(|| Error::Value(format!("Primary key not found in {}", self.name)))?;
+        row.get(index)
+            .cloned()
+            .ok_or_else(|| Error::Value("Primary key value not found for row".into()))
     }
-
 }
 
 impl Column {

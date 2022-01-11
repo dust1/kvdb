@@ -1,5 +1,6 @@
 use crate::error::{Error, Result};
-use crate::storage::kv::encoding::encode_bytes;
+use crate::storage::kv::encoding::{encode_bytes, take_byte, take_bytes};
+use crate::storage::range::Range;
 use crate::storage::Store;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -7,7 +8,6 @@ use std::io::Read;
 use std::iter::Peekable;
 use std::ops::{Bound, RangeBounds};
 use std::sync::{Arc, RwLock};
-use crate::storage::range::Range;
 
 /// a key-value store
 pub struct KVStoreEngine {
@@ -21,6 +21,7 @@ pub struct Scan {
 }
 
 /// store engine key
+#[derive(Debug)]
 enum Key<'a> {
     /// A record for a key/version pair.
     Record(Cow<'a, [u8]>),
@@ -60,9 +61,7 @@ impl KVStoreEngine {
     /// scan keys under a given prefix.
     pub fn scan_prefix(&self, prefix: &[u8]) -> Result<super::super::range::Scan> {
         if prefix.is_empty() {
-            return Err(Error::Value(format!(
-                "Scan prefix cannot be empty".into()
-            )));
+            return Err(Error::Value("Scan prefix cannot be empty".into()));
         }
         let start = prefix.to_vec();
         let mut end = start.clone();
@@ -79,7 +78,7 @@ impl KVStoreEngine {
                 0xff => {
                     end[i] = 0x00;
                     continue;
-                },
+                }
                 v => {
                     end[i] = v + 1;
                 }
@@ -94,12 +93,12 @@ impl KVStoreEngine {
         let start = match range.start_bound() {
             Bound::Excluded(k) => Bound::Excluded(Key::Record(k.into()).encode()),
             Bound::Included(k) => Bound::Included(Key::Record(k.into()).encode()),
-            Bound::Unbounded => Bound::Included(Key::Record(vec![].into()))
+            Bound::Unbounded => Bound::Included(Key::Record(vec![].into()).encode()),
         };
         let end = match range.end_bound() {
             Bound::Excluded(k) => Bound::Excluded(Key::Record(k.into()).encode()),
             Bound::Included(k) => Bound::Included(Key::Record(k.into()).encode()),
-            Bound::Unbounded => Bound::Unbounded
+            Bound::Unbounded => Bound::Unbounded,
         };
         let scan = self.store.read()?.scan(Range::from((start, end)));
         Ok(Box::new(Scan::new(scan)))
@@ -119,11 +118,72 @@ impl<'a> Key<'a> {
             Self::Record(key) => [&[0xff][..], &encode_bytes(&key)].concat(),
         }
     }
+
+    fn decode(mut bytes: &[u8]) -> Result<Self> {
+        let bytes = &mut bytes;
+        let key = match take_byte(bytes)? {
+            0xff => Self::Record(take_bytes(bytes)?.into()),
+            b => return Err(Error::Internal(format!("Unknown key prefix byte:{:x?}", b))),
+        };
+        if !bytes.is_empty() {
+            return Err(Error::Internal("Unexpceted data remaining at end of key".into()));
+        }
+        Ok(key)
+    }
 }
 
 impl Scan {
     fn new(mut scan: super::super::range::Scan) -> Self {
-        todo!()
+        scan = Box::new(scan.flat_map(|r| {
+            r.and_then(|(k, v)| match Key::decode(&k)? {
+                Key::Record(key) => Ok(Some((key.into_owned(), v))),
+            })
+            .transpose()
+        }));
+        Self { scan: scan.peekable() }
+    }
+
+    // next() with error handling.
+    fn try_next(&mut self) -> Result<Option<(Vec<u8>, Vec<u8>)>> {
+        while let Some((key, value)) = self.scan.next().transpose()? {
+            // Only return the item if it is the last version of the key.
+            if match self.scan.peek() {
+                Some(Ok((peek_key, _))) if *peek_key != key => true,
+                Some(Ok(_)) => false,
+                Some(Err(err)) => return Err(err.clone()),
+                None => true,
+            } {
+                // Only return non-deleted items.
+                if let Some(value) = deserialize(&value)? {
+                    return Ok(Some((key, value)));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// next_back() with error handling.
+    fn try_next_back(&mut self) -> Result<Option<(Vec<u8>, Vec<u8>)>> {
+        while let Some((key, value)) = self.scan.next_back().transpose()? {
+            // Only return non-deleted items.
+            if let Some(value) = deserialize(&value)? {
+                return Ok(Some((key, value)));
+            }
+        }
+        Ok(None)
+    }
+}
+
+impl Iterator for Scan {
+    type Item = Result<(Vec<u8>, Vec<u8>)>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.try_next().transpose()
+    }
+}
+
+impl DoubleEndedIterator for Scan {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.try_next_back().transpose()
     }
 }
 
