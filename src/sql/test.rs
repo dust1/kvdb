@@ -7,6 +7,8 @@ use crate::sql::plan::Plan;
 use crate::storage::kv::engine::KVStoreEngine;
 use crate::storage::memory::Memory;
 
+
+
 #[test]
 fn test() -> Result<()> {
     let sql = "SELECT SELECT WHERE ORDER BY LIMIT";
@@ -21,11 +23,16 @@ fn test_plan() -> Result<()> {
         "INSERT INTO movies VALUES (1, 'Sicario'), (2, 'Stalker'), (3, 'Her');",
         "SELECT * FROM movies;",
     ];
+    let store = Box::new(Memory::new());
+    let store_engine = KVStoreEngine::new(store);
+    let mut kv = KV::new(store_engine);
 
     for sql in sqls {
-        plan_sql(sql)?;
+        let statement = KVParser::build(sql)?.parser()?;
+        let plan = Plan::build(statement, &mut kv)?;
+        let result = plan.optimize(&mut kv)?.execute(&mut kv)?;
+        println!("{:?}", result);
     }
-
     Ok(())
 }
 

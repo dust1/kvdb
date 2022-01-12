@@ -3,9 +3,8 @@ use crate::sql::engine::Scan;
 use crate::sql::schema::{Catalog, Table, Tables};
 use crate::sql::types::expression::Expression;
 use crate::sql::types::{Row, Value};
-use crate::storage::kv::encoding::encode_string;
+use crate::storage::kv::encoding::{encode_string, encode_value};
 use crate::storage::kv::engine::KVStoreEngine;
-use crate::storage::Store;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
@@ -25,11 +24,20 @@ impl Clone for KV {
 enum Key<'a> {
     /// a table schema key for the given table name
     Table(Option<Cow<'a, str>>),
+    /// a key of a row identified by table name any row primary key
+    Row(Cow<'a, str>, Option<Cow<'a, Value>>),
 }
 
 impl KV {
     pub fn new(kv: KVStoreEngine) -> Self {
         Self { kv }
+    }
+
+    /// read a table row by table name and primary id
+    pub fn read(&self, table: &str, id: &Value) -> Result<Option<Row>> {
+        let key = Key::Row(table.into(), Some(id.into())).encode();
+        let value = self.kv.get(&key)?;
+        value.map(|v| deserialize(&v)).transpose()
     }
 }
 
@@ -63,19 +71,72 @@ impl Catalog for KV {
     }
 
     fn scan_table(&self) -> Result<Tables> {
-        todo!()
+        Ok(Box::new(
+            self.kv
+                .scan_prefix(&Key::Table(None).encode())?
+                .map(|r| r.and_then(|(_, v)| deserialize(&v)))
+                .collect::<Result<Vec<_>>>()?
+                .into_iter(),
+        ))
     }
 
-    fn scan(&self, _table: &str, _filter: Option<Expression>) -> Result<Scan> {
-        todo!()
+    /// scan a table's row
+    fn scan(&self, table: &str, filter: Option<Expression>) -> Result<Scan> {
+        // 1. read table
+        let table = self.must_read_table(table)?;
+        Ok(Box::new(
+            self.kv
+                // scan by table name and no primary key
+                .scan_prefix(&Key::Row((&table.name).into(), None).encode())?
+                // deserialize value
+                .map(|r| r.and_then(|(_, v)| deserialize(&v)))
+                .filter_map(move |r| match r {
+                    Ok(row) => match &filter {
+                        // filter value
+                        Some(filter) => match filter.evaluate(Some(&row)) {
+                            Ok(Value::Boolean(b)) if b => Some(Ok(row)),
+                            Ok(Value::Boolean(_)) | Ok(Value::Null) => None,
+                            Ok(v) => Some(Err(Error::Value(format!(
+                                "Filter returnd {}, excepted boolean",
+                                v
+                            )))),
+                            Err(err) => Some(Err(err)),
+                        },
+                        None => Some(Ok(row)),
+                    },
+                    err => Some(err),
+                }),
+        ))
     }
 
-    fn create(&mut self, _table: &str, _row: Row) -> Result<()> {
-        todo!()
+    fn create(&mut self, table: &str, row: Row) -> Result<()> {
+        let table = self.must_read_table(table)?;
+        // TODO 1. validate_row
+        // table.validate_row(&row, self)?;
+        let id = table.get_row_key(&row)?;
+        if self.read(&table.name, &id)?.is_some() {
+            return Err(Error::Value(format!(
+                "Primary key {} alreary exists for table {}",
+                id, table.name
+            )));
+        }
+
+        // save data
+        self.kv.set(
+            &Key::Row(Cow::Borrowed(&table.name), Some(Cow::Borrowed(&id))).encode(),
+            serialize(&row)?,
+        )?;
+
+        // TODO 2. update index
+
+        Ok(())
     }
 
-    fn delete(&mut self, _table: &str, _id: &Value) -> Result<()> {
-        todo!()
+    fn delete(&mut self, table: &str, id: &Value) -> Result<()> {
+        // let table = self.must_read_table(table)?;
+        // TODO 1. check reference
+        // TODO 2. remove index
+        self.kv.delete(&Key::Row(Cow::Borrowed(table), Some(Cow::Borrowed(&id))).encode())
     }
 }
 
@@ -85,6 +146,10 @@ impl<'a> Key<'a> {
         match self {
             Self::Table(None) => vec![0x01],
             Self::Table(Some(name)) => [&[0x01][..], &encode_string(&name)].concat(),
+            Self::Row(table, None) => [&[0x03][..], &encode_string(&table)].concat(),
+            Self::Row(table, Some(pk)) => {
+                [&[0x03][..], &encode_string(&table), &encode_value(&pk)].concat()
+            }
         }
     }
 }

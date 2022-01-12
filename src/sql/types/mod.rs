@@ -4,7 +4,9 @@ use crate::error::Result;
 use serde_derive::{Deserialize, Serialize};
 use sqlparser::ast::Expr;
 use sqlparser::ast::Value as ExprValue;
+use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
+use std::hash::Hash;
 
 /// a row of values
 pub type Row = Vec<Value>;
@@ -36,6 +38,28 @@ pub enum DataType {
     Integer,
     Float,
     String,
+}
+
+impl std::cmp::Eq for Value {}
+
+#[allow(clippy::derive_hash_xor_eq)]
+impl Hash for Value {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // todo
+        core::mem::discriminant(self).hash(state);
+    }
+}
+
+impl<'a> From<Value> for Cow<'a, Value> {
+    fn from(v: Value) -> Self {
+        Cow::Owned(v)
+    }
+}
+
+impl<'a> From<&'a Value> for Cow<'a, Value> {
+    fn from(v: &'a Value) -> Self {
+        Cow::Borrowed(v)
+    }
 }
 
 impl Value {

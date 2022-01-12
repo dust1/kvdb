@@ -109,6 +109,16 @@ impl Table {
         Ok(())
     }
 
+    /// validate a row in this table
+    pub fn validate_row(&self, _row: &[Value], _kv: &mut KV) -> Result<()> {
+        todo!()
+    }
+
+    // fetchs a column index by name
+    pub fn get_column_index(&self, _name: &str) -> Result<usize> {
+        todo!()
+    }
+
     /// returns the primary key column of the table
     pub fn get_primary_key(&self) -> Result<&Column> {
         self.columns
