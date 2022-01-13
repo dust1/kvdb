@@ -7,6 +7,7 @@ use crate::sql::plan::Plan;
 use crate::storage::kv::engine::KVStoreEngine;
 use crate::storage::memory::Memory;
 
+use super::execution::ResultSet;
 
 
 #[test]
@@ -31,7 +32,22 @@ fn test_plan() -> Result<()> {
         let statement = KVParser::build(sql)?.parser()?;
         let plan = Plan::build(statement, &mut kv)?;
         let result = plan.optimize(&mut kv)?.execute(&mut kv)?;
-        println!("{:?}", result);
+        match result {
+            ResultSet::Query { columns, rows } => {
+                println!("columns => {:?}", columns);
+                for row in rows {
+                    match row {
+                        Ok(res) => {
+                            println!("rows => {:?}", res);
+                        },
+                        Err(err) => return Err(err),
+                    }
+                }
+            },
+            res => {
+                println!("{:?}", res);
+            }
+        }
     }
     Ok(())
 }
