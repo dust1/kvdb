@@ -1,7 +1,7 @@
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::sql::types::{Row, Value};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -79,7 +79,19 @@ impl Expression {
             // constant value
             Self::Constant(c) => c.clone(),
             Self::Field(i, _) => row.and_then(|row| row.get(*i).cloned()).unwrap_or(Null),
-            _ => todo!(),
+            Self::Equal(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Boolean(lhs), Boolean(rhs)) => Boolean(lhs == rhs),
+                (Integer(lhs), Integer(rhs)) => Boolean(lhs == rhs),
+                (Integer(lhs), Float(rhs)) => Boolean(lhs as f64 == rhs),
+                (Float(lhs), Integer(rhs)) => Boolean(lhs == rhs as f64),
+                (Float(lhs), Float(rhs)) => Boolean(lhs == rhs),
+                (String(lhs), String(rhs)) => Boolean(lhs == rhs),
+                (Null, _) | (_, Null) => Null,
+                (lhs, rhs) => {
+                    return Err(Error::Internal(format!("Can't compare {} and {}", lhs, rhs)))
+                }
+            },
+            e => return Err(Error::Internal(format!("Unsupport expression evaluate: {}", e))),
         })
     }
 }

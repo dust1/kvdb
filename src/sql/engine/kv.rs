@@ -138,6 +138,13 @@ impl Catalog for KV {
         // TODO 2. remove index
         self.kv.delete(&Key::Row(Cow::Borrowed(table), Some(Cow::Borrowed(&id))).encode())
     }
+
+    fn update(&mut self, table: &str, id: &Value, row: Row) -> Result<()> {
+        self.kv.set(
+            &Key::Row(Cow::Borrowed(table), Some(Cow::Borrowed(&id))).encode(),
+            serialize(&row)?,
+        )
+    }
 }
 
 impl<'a> Key<'a> {

@@ -9,7 +9,6 @@ use crate::storage::memory::Memory;
 
 use super::execution::ResultSet;
 
-
 #[test]
 fn test() -> Result<()> {
     let sql = "SELECT SELECT WHERE ORDER BY LIMIT";
@@ -23,6 +22,8 @@ fn test_plan() -> Result<()> {
         "CREATE TABLE movies (id INTEGER PRIMARY KEY, title VARCHAR NOT NULL);",
         "INSERT INTO movies VALUES (1, 'Sicario'), (2, 'Stalker'), (3, 'Her');",
         "SELECT * FROM movies;",
+        "UPDATE movies SET title = 'His' WHERE id = 3;",
+        "SELECT * FROM movies;",
     ];
     let store = Box::new(Memory::new());
     let store_engine = KVStoreEngine::new(store);
@@ -32,6 +33,7 @@ fn test_plan() -> Result<()> {
         let statement = KVParser::build(sql)?.parser()?;
         let plan = Plan::build(statement, &mut kv)?;
         let result = plan.optimize(&mut kv)?.execute(&mut kv)?;
+        println!("sql => {:?}", sql);
         match result {
             ResultSet::Query { columns, rows } => {
                 println!("columns => {:?}", columns);
@@ -39,15 +41,16 @@ fn test_plan() -> Result<()> {
                     match row {
                         Ok(res) => {
                             println!("rows => {:?}", res);
-                        },
+                        }
                         Err(err) => return Err(err),
                     }
                 }
-            },
+            }
             res => {
                 println!("{:?}", res);
             }
         }
+        println!("---------------------");
     }
     Ok(())
 }
@@ -83,6 +86,17 @@ fn test_insert_parser() -> Result<()> {
         "INSERT INTO Persons VALUES ('Gates', 'Bill', 'Xuanwumen 10', 'Beijing')",
         "INSERT INTO Persons (LastName, Address) VALUES ('Wilson', 'Champs-Elysees')",
     ];
+
+    for sql in sqls {
+        parser_sql(sql)?;
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_update_parser() -> Result<()> {
+    let sqls = ["UPDATE Person SET FirstName = 'Fred' WHERE LastName = 'Wilson'"];
 
     for sql in sqls {
         parser_sql(sql)?;

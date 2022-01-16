@@ -43,12 +43,39 @@ impl Plan {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum Node {
     Nothing,
-    CreateTable { schema: Table },
-    DropTable { table: String },
-    Scan { table: String, alias: Option<String>, filter: Option<Expression> },
-    Filter { source: Box<Node>, predicate: Expression },
-    Projection { source: Box<Node>, expressions: Vec<(Expression, Option<String>)> },
-    Insert { table: String, columns: Vec<String>, expressions: Vec<Vec<Expression>> },
+    CreateTable {
+        schema: Table,
+    },
+    DropTable {
+        table: String,
+    },
+    Scan {
+        table: String,
+        alias: Option<String>,
+        filter: Option<Expression>,
+    },
+    Filter {
+        source: Box<Node>,
+        predicate: Expression,
+    },
+    Projection {
+        source: Box<Node>,
+        expressions: Vec<(Expression, Option<String>)>,
+    },
+    Insert {
+        table: String,
+        columns: Vec<String>,
+        expressions: Vec<Vec<Expression>>,
+    },
+    Update {
+        table: String,
+        source: Box<Node>,
+        expressions: Vec<(usize, Option<String>, Expression)>,
+    },
+    Delete {
+        table: String,
+        source: Box<Node>,
+    },
 }
 
 impl Node {

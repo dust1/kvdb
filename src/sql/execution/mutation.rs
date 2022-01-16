@@ -1,7 +1,9 @@
+use std::collections::HashSet;
+
 use crate::error::{Error, Result};
 use crate::sql::execution::{Executor, ResultSet};
 use crate::sql::schema::{Catalog, Table};
-use crate::sql::types::expression::Expression;
+use crate::sql::types::expression::{self, Expression};
 use crate::sql::types::{Row, Value};
 
 /// An INSERT Executor
@@ -9,6 +11,13 @@ pub struct Insert {
     table: String,
     columns: Vec<String>,
     rows: Vec<Vec<Expression>>,
+}
+
+// A UPDATE executor
+pub struct Update<C: Catalog> {
+    table: String,
+    source: Box<dyn Executor<C>>,
+    expressions: Vec<(usize, Expression)>,
 }
 
 impl Insert {
@@ -119,5 +128,41 @@ impl<C: Catalog> Executor<C> for Insert {
             count += 1;
         }
         Ok(ResultSet::Create { count })
+    }
+}
+
+impl<C: Catalog> Update<C> {
+    pub fn new(
+        table_name: String,
+        source: Box<dyn Executor<C>>,
+        expressions: Vec<(usize, Expression)>,
+    ) -> Box<Self> {
+        Box::new(Self { table: table_name, source, expressions })
+    }
+}
+
+impl<C: Catalog> Executor<C> for Update<C> {
+    fn execute(self: Box<Self>, catalog: &mut C) -> Result<ResultSet> {
+        match self.source.execute(catalog)? {
+            ResultSet::Query { mut rows, .. } => {
+                let table = catalog.must_read_table(&self.table)?;
+                let mut update = HashSet::new();
+                while let Some(row) = rows.next().transpose()? {
+                    let id = table.get_row_key(&row)?;
+                    if update.contains(&id) {
+                        continue;
+                    }
+                    let mut new = row.clone();
+                    for (index, expression) in &self.expressions {
+                        new[*index] = expression.evaluate(Some(&row))?;
+                    }
+
+                    catalog.update(&table.name, &id, new)?;
+                    update.insert(id);
+                }
+                Ok(ResultSet::Update { count: update.len() as u64 })
+            }
+            r => Err(Error::Internal(format!("Unexpected response: {:?}", r))),
+        }
     }
 }

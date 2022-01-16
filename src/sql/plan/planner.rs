@@ -5,7 +5,7 @@ use crate::sql::schema::{Catalog, Table};
 use crate::sql::types::expression::Expression;
 use crate::sql::types::Value;
 use sqlparser::ast::{
-    Expr, Ident, Join, Query, Select, SelectItem, SetExpr, TableFactor, TableWithJoins,
+    Assignment, Expr, Ident, Join, Query, Select, SelectItem, SetExpr, TableFactor, TableWithJoins,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -65,10 +65,59 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 columns: columns.iter().map(|ident| ident.to_string()).collect::<Vec<String>>(),
                 expressions: self.query_to_expressions(source.as_ref())?,
             }),
+            KVStatement::Update { table_name, assignments, selection } => {
+                let table = self.catalog.must_read_table(&table_name.to_string())?;
+                let mut scope = Scope::from_table(table)?;
+                let set = self.assignment_to_set(assignments, &mut scope)?;
+                let filter =
+                    selection.map(|expr| self.build_expression(&expr, &mut scope)).transpose()?;
+                Ok(Node::Update {
+                    table: table_name.to_string(),
+                    source: Box::new(Node::Scan {
+                        table: table_name.to_string(),
+                        alias: None,
+                        filter: filter,
+                    }),
+                    expressions: set,
+                })
+            }
+            KVStatement::Delete { table_name, selection } => {
+                let mut scope =
+                    Scope::from_table(self.catalog.must_read_table(&table_name.to_string())?)?;
+                let filter =
+                    selection.map(|expr| self.build_expression(&expr, &mut scope)).transpose()?;
+                Ok(Node::Delete {
+                    table: table_name.to_string(),
+                    source: Box::new(Node::Scan {
+                        table: table_name.to_string(),
+                        alias: None,
+                        filter: filter,
+                    }),
+                })
+            }
             _ => {
                 todo!()
             }
         }
+    }
+
+    /// assignment to set
+    fn assignment_to_set(
+        &self,
+        assignments: Vec<Assignment>,
+        scope: &mut Scope,
+    ) -> Result<Vec<(usize, Option<String>, Expression)>> {
+        Ok(assignments
+            .into_iter()
+            .map(|issignment| {
+                let field = issignment.id.to_string();
+                Ok((
+                    scope.resolve(None, &field)?,
+                    Some(field),
+                    self.build_expression(&issignment.value, scope)?,
+                ))
+            })
+            .collect::<Result<_>>()?)
     }
 
     /// by select
@@ -334,6 +383,12 @@ impl Scope {
             unqualified: HashMap::new(),
             ambiguous: HashSet::new(),
         }
+    }
+
+    pub fn from_table(table: Table) -> Result<Self> {
+        let mut scope = Scope::new();
+        scope.add_table(table.name.clone(), table)?;
+        Ok(scope)
     }
 
     pub fn constant() -> Self {

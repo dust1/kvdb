@@ -14,6 +14,8 @@ use crate::sql::types::{Columns, Rows};
 use derivative::Derivative;
 use serde_derive::{Deserialize, Serialize};
 
+use self::mutation::Update;
+
 /// a plan executor
 pub trait Executor<C: Catalog> {
     /// executes the executor, consuming it and return a result set
@@ -44,6 +46,9 @@ pub enum ResultSet {
         #[serde(skip, default = "ResultSet::empty_rows")]
         rows: Rows,
     },
+    Update {
+        count: u64,
+    },
     // Explain result
     Explain(Node),
 }
@@ -62,6 +67,14 @@ impl<C: Catalog + 'static> dyn Executor<C> {
             }
             Node::Insert { table, columns, expressions } => {
                 Insert::new(table, columns, expressions)
+            }
+            Node::Update { table, source, expressions } => Update::new(
+                table,
+                Self::build(*source),
+                expressions.into_iter().map(|(i, _, e)| (i, e)).collect(),
+            ),
+            Node::Delete { table, source } => {
+                todo!()
             }
         }
     }

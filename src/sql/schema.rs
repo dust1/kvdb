@@ -51,6 +51,9 @@ pub trait Catalog {
     /// delete a table row
     fn delete(&mut self, table: &str, id: &Value) -> Result<()>;
 
+    /// update a table row
+    fn update(&mut self, table: &str, id: &Value, row: Row) -> Result<()>;
+
     /// Read a table, and error if it does not exists
     fn must_read_table(&self, table: &str) -> Result<Table> {
         self.read_table(table)?
