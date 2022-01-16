@@ -24,6 +24,8 @@ fn test_plan() -> Result<()> {
         "SELECT * FROM movies;",
         "UPDATE movies SET title = 'His' WHERE id = 3;",
         "SELECT * FROM movies;",
+        "DELETE FROM movies WHERE id = 3;",
+        "SELECT * FROM movies;",
     ];
     let store = Box::new(Memory::new());
     let store_engine = KVStoreEngine::new(store);

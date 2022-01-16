@@ -20,6 +20,11 @@ pub struct Update<C: Catalog> {
     expressions: Vec<(usize, Expression)>,
 }
 
+pub struct Delete<C: Catalog> {
+    table: String,
+    source: Box<dyn Executor<C>>,
+}
+
 impl Insert {
     pub fn new(table: String, columns: Vec<String>, rows: Vec<Vec<Expression>>) -> Box<Self> {
         Box::new(Self { table, columns, rows })
@@ -161,6 +166,33 @@ impl<C: Catalog> Executor<C> for Update<C> {
                     update.insert(id);
                 }
                 Ok(ResultSet::Update { count: update.len() as u64 })
+            }
+            r => Err(Error::Internal(format!("Unexpected response: {:?}", r))),
+        }
+    }
+}
+
+impl<C: Catalog> Delete<C> {
+    pub fn new(table_name: String, source: Box<dyn Executor<C>>) -> Box<Self> {
+        Box::new(Self { table: table_name, source })
+    }
+}
+
+impl<C: Catalog> Executor<C> for Delete<C> {
+    fn execute(self: Box<Self>, catalog: &mut C) -> Result<ResultSet> {
+        match self.source.execute(catalog)? {
+            ResultSet::Query { mut rows, .. } => {
+                let table = catalog.must_read_table(&self.table)?;
+                let mut deleted = HashSet::new();
+                while let Some(row) = rows.next().transpose()? {
+                    let id = table.get_row_key(&row)?;
+                    if deleted.contains(&id) {
+                        continue;
+                    }
+                    catalog.delete(&table.name, &id)?;
+                    deleted.insert(id);
+                }
+                Ok(ResultSet::Delete { count: deleted.len() as u64 })
             }
             r => Err(Error::Internal(format!("Unexpected response: {:?}", r))),
         }

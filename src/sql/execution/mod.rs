@@ -14,7 +14,7 @@ use crate::sql::types::{Columns, Rows};
 use derivative::Derivative;
 use serde_derive::{Deserialize, Serialize};
 
-use self::mutation::Update;
+use self::mutation::{Delete, Update};
 
 /// a plan executor
 pub trait Executor<C: Catalog> {
@@ -49,6 +49,9 @@ pub enum ResultSet {
     Update {
         count: u64,
     },
+    Delete {
+        count: u64,
+    },
     // Explain result
     Explain(Node),
 }
@@ -73,9 +76,7 @@ impl<C: Catalog + 'static> dyn Executor<C> {
                 Self::build(*source),
                 expressions.into_iter().map(|(i, _, e)| (i, e)).collect(),
             ),
-            Node::Delete { table, source } => {
-                todo!()
-            }
+            Node::Delete { table, source } => Delete::new(table, Self::build(*source)),
         }
     }
 }
