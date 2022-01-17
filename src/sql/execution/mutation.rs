@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::error::{Error, Result};
 use crate::sql::execution::{Executor, ResultSet};
 use crate::sql::schema::{Catalog, Table};
-use crate::sql::types::expression::{self, Expression};
+use crate::sql::types::expression::{Expression};
 use crate::sql::types::{Row, Value};
 
 /// An INSERT Executor

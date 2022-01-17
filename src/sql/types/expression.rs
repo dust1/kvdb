@@ -1,6 +1,7 @@
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
+
 use crate::error::{Error, Result};
 use crate::sql::types::{Row, Value};
 
@@ -79,6 +80,7 @@ impl Expression {
             // constant value
             Self::Constant(c) => c.clone(),
             Self::Field(i, _) => row.and_then(|row| row.get(*i).cloned()).unwrap_or(Null),
+            Self::Wildcard => Null,
             Self::Equal(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
                 (Boolean(lhs), Boolean(rhs)) => Boolean(lhs == rhs),
                 (Integer(lhs), Integer(rhs)) => Boolean(lhs == rhs),
@@ -89,6 +91,85 @@ impl Expression {
                 (Null, _) | (_, Null) => Null,
                 (lhs, rhs) => {
                     return Err(Error::Internal(format!("Can't compare {} and {}", lhs, rhs)))
+                }
+            },
+            Self::LessThan(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Boolean(lhs), Boolean(rhs)) => Boolean(lhs < rhs),
+                (Integer(lhs), Integer(rhs)) => Boolean(lhs < rhs),
+                (Integer(lhs), Float(rhs)) => Boolean((lhs as f64) < rhs),
+                (Float(lhs), Integer(rhs)) => Boolean(lhs < (rhs as f64)),
+                (Float(lhs), Float(rhs)) => Boolean(lhs < rhs),
+                (String(lhs), String(rhs)) => Boolean(lhs < rhs),
+                (Null, _) | (_, Null) => Null,
+                (lhs, rhs) => {
+                    return Err(Error::Internal(format!(
+                        "Can't compare less than {} and {}",
+                        lhs, rhs
+                    )))
+                }
+            },
+            Self::GreaterThan(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Boolean(lhs), Boolean(rhs)) => Boolean(lhs > rhs),
+                (Integer(lhs), Integer(rhs)) => Boolean(lhs > rhs),
+                (Integer(lhs), Float(rhs)) => Boolean((lhs as f64) > rhs),
+                (Float(lhs), Integer(rhs)) => Boolean(lhs > (rhs as f64)),
+                (Float(lhs), Float(rhs)) => Boolean(lhs > rhs),
+                (String(lhs), String(rhs)) => Boolean(lhs > rhs),
+                (Null, _) | (_, Null) => Null,
+                (lhs, rhs) => {
+                    return Err(Error::Internal(format!(
+                        "Can't compare greater than {} and {}",
+                        lhs, rhs
+                    )))
+                }
+            },
+            Self::IsNull(expr) => match expr.evaluate(row)? {
+                Null => Boolean(true),
+                _ => Boolean(false),
+            },
+            Self::Or(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Boolean(lhs), Boolean(rhs)) => Boolean(lhs || rhs),
+                (Boolean(lhs), Null) if lhs => Boolean(true),
+                (Null, Boolean(rhs)) if rhs => Boolean(true),
+                (Null, Boolean(_)) | (Boolean(_), Null) | (Null, Null) => Null,
+                (lhs, rhs) => return Err(Error::Internal(format!("Can't or {} and {}", lhs, rhs))),
+            },
+            Self::And(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Boolean(lhs), Boolean(rhs)) => Boolean(lhs && rhs),
+                (Boolean(lhs), Null) if !lhs => Boolean(false),
+                (Null, Boolean(rhs)) if !rhs => Boolean(false),
+                (Boolean(_), Null) | (Null, Boolean(_)) | (Null, Null) => Null,
+                (lhs, rhs) => {
+                    return Err(Error::Internal(format!("Can't compare {} and {}", lhs, rhs)))
+                }
+            },
+            Self::Not(expr) => match expr.evaluate(row)? {
+                Boolean(b) => Boolean(!b),
+                Null => Null,
+                other => return Err(Error::Internal(format!("Can't not {} ", other))),
+            },
+            Self::Assert(expr) => match expr.evaluate(row)? {
+                Float(f) => Float(f),
+                Integer(i) => Integer(i),
+                Null => Null,
+                expr => {
+                    return Err(Error::Internal(format!("Can't take the positive of {}", expr)))
+                }
+            },
+            // here determines our calculation rules
+            // e.g. 1 + NULL = 1 or 1 + NULL = NULL
+            Self::Add(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Integer(lhs), Integer(rhs)) => Integer(
+                    lhs.checked_add(rhs).ok_or_else(|| Error::Value("Integer overflow".into()))?,
+                ),
+                (Integer(lhs), Float(rhs)) => Float(lhs as f64 + rhs),
+                (Integer(_), Null) | (Null, Integer(_)) => Null,
+                (Float(lhs), Integer(rhs)) => Float(lhs + rhs as f64),
+                (Float(lhs), Float(rhs)) => Float(lhs + rhs),
+                (Float(_), Null) | (Null, Float(_)) => Null,
+                (Null, Null) => Null,
+                (lhs, rhs) => {
+                    return Err(Error::Internal(format!("Can't add the {} and {}", lhs, rhs)))
                 }
             },
             e => return Err(Error::Internal(format!("Unsupport expression evaluate: {}", e))),

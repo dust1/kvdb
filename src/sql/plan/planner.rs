@@ -178,6 +178,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
         }
 
         // todo HAVING, ORDER, LIMIT, OFFSET
+
         Ok(node)
     }
 

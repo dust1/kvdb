@@ -22,6 +22,8 @@ fn test_plan() -> Result<()> {
         "CREATE TABLE movies (id INTEGER PRIMARY KEY, title VARCHAR NOT NULL);",
         "INSERT INTO movies VALUES (1, 'Sicario'), (2, 'Stalker'), (3, 'Her');",
         "SELECT * FROM movies;",
+        "SELECT id as num FROM movies where id < 2;",
+        "SELECT id as num FROM movies where id >= 3;",
         "UPDATE movies SET title = 'His' WHERE id = 3;",
         "SELECT * FROM movies;",
         "DELETE FROM movies WHERE id = 3;",
