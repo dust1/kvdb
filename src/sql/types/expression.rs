@@ -1,6 +1,6 @@
+use regex::Regex;
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
-
 
 use crate::error::{Error, Result};
 use crate::sql::types::{Row, Value};
@@ -172,7 +172,83 @@ impl Expression {
                     return Err(Error::Internal(format!("Can't add the {} and {}", lhs, rhs)))
                 }
             },
-            e => return Err(Error::Internal(format!("Unsupport expression evaluate: {}", e))),
+            Self::Divide(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Integer(lhs), Integer(rhs)) => Float(lhs as f64 / rhs as f64),
+                (Integer(lhs), Float(rhs)) => Float(lhs as f64 / rhs),
+                (Float(lhs), Integer(rhs)) => Float(lhs / rhs as f64),
+                (Float(lhs), Float(rhs)) => Float(lhs / rhs),
+                (Integer(_), Null) | (Null, Integer(_)) | (Float(_), Null) | (Null, Float(_)) => {
+                    Null
+                }
+                (Null, Null) => Null,
+                (lhs, rhs) => return Err(Error::Internal(format!("Can't get {}/{}", lhs, rhs))),
+            },
+            Self::Exponentiate(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Integer(lhs), Integer(rhs)) => Integer(lhs ^ rhs),
+                (Null, _) | (_, Null) => Null,
+                (lhs, rhs) => return Err(Error::Internal(format!("Can't get {} ^ {}", lhs, rhs))),
+            },
+            Self::Factorial(expr) => match expr.evaluate(row)? {
+                Integer(expr) => Integer(!expr),
+                Boolean(expr) => Boolean(!expr),
+                Null => Null,
+                expr => return Err(Error::Internal(format!("Can't get !{}", expr))),
+            },
+            Self::Modulo(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Integer(lhs), Integer(rhs)) => Integer(lhs % rhs),
+                (Integer(lhs), Float(rhs)) => Float(lhs as f64 % rhs),
+                (Float(lhs), Integer(rhs)) => Float(lhs % rhs as f64),
+                (Float(lhs), Float(rhs)) => Float(lhs % rhs),
+                (_, Null) | (Null, _) => Null,
+                (lhs, rhs) => return Err(Error::Internal(format!("Can't get {} % {}", lhs, rhs))),
+            },
+            Self::Multiply(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Integer(lhs), Integer(rhs)) => Integer(
+                    lhs.checked_mul(rhs)
+                        .ok_or_else(|| Error::Internal("multiply overflow".into()))?,
+                ),
+                (Integer(lhs), Float(rhs)) => Float(lhs as f64 * rhs),
+                (Float(lhs), Integer(rhs)) => Float(lhs * rhs as f64),
+                (Float(lhs), Float(rhs)) => Float(lhs * rhs),
+                (Null, _) | (_, Null) => Null,
+                (lhs, rhs) => return Err(Error::Internal(format!("Can't get {} * {}", lhs, rhs))),
+            },
+            Self::Negate(expr) => match expr.evaluate(row)? {
+                Integer(expr) => Integer(
+                    expr.checked_neg().ok_or_else(|| Error::Value(format!("{} overflow", expr)))?,
+                ),
+                Float(expr) => Float(-expr),
+                Null => Null,
+                expr => return Err(Error::Internal(format!("Cant't get -{}", expr))),
+            },
+            Self::Subtract(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (Integer(lhs), Integer(rhs)) => Integer(
+                    lhs.checked_sub(rhs)
+                        .ok_or_else(|| Error::Value(format!("overflow with {} - {}", lhs, rhs)))?,
+                ),
+                (Integer(lhs), Float(rhs)) => Float(lhs as f64 - rhs),
+                (Float(lhs), Integer(rhs)) => Float(lhs - rhs as f64),
+                (Float(lhs), Float(rhs)) => Float(lhs - rhs),
+                (Null, _) | (_, Null) => Null,
+                (lhs, rhs) => return Err(Error::Internal(format!("Can't get {} - {}", lhs, rhs))),
+            },
+            Self::Like(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
+                (String(lhs), String(rhs)) => Boolean(
+                    Regex::new(&format!(
+                        "^{}$",
+                        regex::escape(&rhs)
+                            .replace("%", ".*")
+                            .replace(".*.*", "%")
+                            .replace("_", ".")
+                            .replace("..", "_")
+                    ))?
+                    .is_match(&lhs),
+                ),
+                (String(_), Null) | (Null, String(_)) => Null,
+                (lhs, rhs) => {
+                    return Err(Error::Internal(format!("Can't get {} like {}", lhs, rhs)))
+                }
+            },
         })
     }
 }

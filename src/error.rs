@@ -72,3 +72,9 @@ impl From<Box<bincode::ErrorKind>> for Error {
         Error::Internal(err.to_string())
     }
 }
+
+impl From<regex::Error> for Error {
+    fn from(err: regex::Error) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
