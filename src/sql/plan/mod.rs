@@ -39,6 +39,13 @@ impl Plan {
     }
 }
 
+/// a sort order direction
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub enum Direction {
+    Ascending,
+    Descending,
+}
+
 /// Plan Node
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum Node {
@@ -75,6 +82,14 @@ pub enum Node {
     Delete {
         table: String,
         source: Box<Node>,
+    },
+    GroupBy {
+        source: Box<Node>,
+        expression: Vec<Expression>,
+    },
+    OrderBy {
+        source: Box<Node>,
+        orders: Vec<(Expression, Direction)>,
     },
 }
 

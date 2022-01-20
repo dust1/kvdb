@@ -5,9 +5,12 @@ use crate::sql::schema::{Catalog, Table};
 use crate::sql::types::expression::Expression;
 use crate::sql::types::Value;
 use sqlparser::ast::{
-    Assignment, Expr, Ident, Join, Query, Select, SelectItem, SetExpr, TableFactor, TableWithJoins,
+    Assignment, Expr, Ident, Join, OrderByExpr, Query, Select, SelectItem, SetExpr, TableFactor,
+    TableWithJoins,
 };
 use std::collections::{HashMap, HashSet};
+
+use super::Direction;
 
 /// query plan builder
 pub struct Planner<'a, C: Catalog> {
@@ -124,11 +127,37 @@ impl<'a, C: Catalog> Planner<'a, C> {
     fn query_to_plan(&mut self, query: &Query) -> Result<Node> {
         let mut scope = Scope::new();
         let set_expr = &query.body;
+        let mut node = self.set_expr_to_plan(set_expr, &mut scope)?;
 
-        let node = self.set_expr_to_plan(set_expr, &mut scope)?;
-        // TODO ORDER BY
-        // TODO LIMIT
+        node = self.build_order_node(node, &query.order_by, &mut scope)?;
+
         Ok(node)
+    }
+
+    fn build_order_node(
+        &mut self,
+        node: Node,
+        order_by: &Vec<OrderByExpr>,
+        scope: &mut Scope,
+    ) -> Result<Node> {
+        match order_by.is_empty() {
+            true => Ok(node),
+            false => Ok(Node::OrderBy {
+                source: Box::new(node),
+                orders: order_by
+                    .iter()
+                    .map(|o| {
+                        let expr = self.build_expression(&o.expr, scope)?;
+                        let direction = match &o.asc {
+                            Some(true) => Direction::Ascending,
+                            Some(false) => Direction::Descending,
+                            None => Direction::Ascending,
+                        };
+                        Ok((expr, direction))
+                    })
+                    .collect::<Result<_>>()?,
+            }),
+        }
     }
 
     /// by Insert
@@ -163,7 +192,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
         // FROM
         let mut node = self.plan_from_table(&select.from, scope)?;
 
-        // WHERE
+        // WHERE - Filter
         if let Some(expr) = &select.selection {
             node = Node::Filter {
                 source: Box::new(node),
@@ -177,9 +206,30 @@ impl<'a, C: Catalog> Planner<'a, C> {
             node = Node::Projection { source: Box::new(node), expressions }
         }
 
-        // todo HAVING, ORDER, LIMIT, OFFSET
+        // Group by
+        node = self.build_group_by_plan(node, &select.group_by, scope)?;
 
         Ok(node)
+    }
+
+    /// group by
+    fn build_group_by_plan(
+        &self,
+        node: Node,
+        group_by: &Vec<Expr>,
+        scope: &mut Scope,
+    ) -> Result<Node> {
+        if group_by.is_empty() {
+            return Ok(node);
+        }
+
+        Ok(Node::GroupBy {
+            source: Box::new(node),
+            expression: group_by
+                .iter()
+                .map(|iter| self.build_expression(iter, scope))
+                .collect::<Result<_>>()?,
+        })
     }
 
     /// Returns the `Expr`'s corresponding to a SQL query's SELECT expressions.

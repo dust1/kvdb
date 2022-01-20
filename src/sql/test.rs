@@ -60,6 +60,17 @@ fn test_plan() -> Result<()> {
 }
 
 #[test]
+fn test_select_plan() -> Result<()> {
+    let sqls = ["SELECT id as num from movies group by id, name;"];
+
+    for sql in sqls {
+        plan_sql(sql)?;
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_select_parser() -> Result<()> {
     let sqls = [
         "SELECT 1;",

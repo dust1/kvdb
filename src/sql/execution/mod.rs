@@ -77,6 +77,8 @@ impl<C: Catalog + 'static> dyn Executor<C> {
                 expressions.into_iter().map(|(i, _, e)| (i, e)).collect(),
             ),
             Node::Delete { table, source } => Delete::new(table, Self::build(*source)),
+            Node::GroupBy { source: _, expression: _ } => todo!(),
+            Node::OrderBy { source: _, orders: _ } => todo!(),
         }
     }
 }
