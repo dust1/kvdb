@@ -3,6 +3,8 @@ pub mod query;
 pub mod schema;
 pub mod source;
 
+use std::fmt::Display;
+
 use crate::error::Result;
 use crate::sql::execution::mutation::Insert;
 use crate::sql::execution::query::{Filter, Projection};
@@ -15,6 +17,7 @@ use derivative::Derivative;
 use serde_derive::{Deserialize, Serialize};
 
 use self::mutation::{Delete, Update};
+use self::query::Order;
 
 /// a plan executor
 pub trait Executor<C: Catalog> {
@@ -56,6 +59,20 @@ pub enum ResultSet {
     Explain(Node),
 }
 
+impl Display for ResultSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ResultSet::Create { count } => write!(f, "create {}", count),
+            ResultSet::CreateTable { name } => write!(f, "create table {}", name),
+            ResultSet::DropTable { name } => write!(f, "drop table {}", name),
+            ResultSet::Query { columns, .. } => write!(f, "query columns {:?}", columns),
+            ResultSet::Update { count } => write!(f, "update count {}", count),
+            ResultSet::Delete { count } => write!(f, "delete count {}", count),
+            ResultSet::Explain(node) => write!(f, "explain node {}", node),
+        }
+    }
+}
+
 impl<C: Catalog + 'static> dyn Executor<C> {
     /// builds an executor for a plan node, consuming it
     pub fn build(node: Node) -> Box<dyn Executor<C>> {
@@ -78,7 +95,7 @@ impl<C: Catalog + 'static> dyn Executor<C> {
             ),
             Node::Delete { table, source } => Delete::new(table, Self::build(*source)),
             Node::GroupBy { source: _, expression: _ } => todo!(),
-            Node::OrderBy { source: _, orders: _ } => todo!(),
+            Node::OrderBy { source, orders } => Order::new(Self::build(*source), orders),
         }
     }
 }

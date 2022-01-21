@@ -1,8 +1,11 @@
+use std::cmp::Ordering;
+
 use crate::error::{Error, Result};
 use crate::sql::execution::{Executor, ResultSet};
+use crate::sql::plan::Direction;
 use crate::sql::schema::Catalog;
 use crate::sql::types::expression::Expression;
-use crate::sql::types::{Column, Value};
+use crate::sql::types::{Column, Row, Value};
 
 /// a filter executor
 pub struct Filter<C: Catalog> {
@@ -14,6 +17,131 @@ pub struct Filter<C: Catalog> {
 pub struct Projection<C: Catalog> {
     source: Box<dyn Executor<C>>,
     expressions: Vec<(Expression, Option<String>)>,
+}
+
+pub struct Order<C: Catalog> {
+    source: Box<dyn Executor<C>>,
+    orders: Vec<(Expression, Direction)>,
+}
+
+impl<C: Catalog> Order<C> {
+    pub fn new(source: Box<dyn Executor<C>>, orders: Vec<(Expression, Direction)>) -> Box<Self> {
+        Box::new(Self { source, orders })
+    }
+}
+
+impl<C: Catalog> Executor<C> for Order<C> {
+    fn execute(self: Box<Self>, catalog: &mut C) -> Result<ResultSet> {
+        match self.source.execute(catalog)? {
+            ResultSet::Query { columns, rows } => {
+                let mut row_array = rows.collect::<Result<Vec<Row>>>()?;
+                row_array.sort_by(|a, b| {
+                    let mut sort = Ordering::Less;
+                    for (expr, direction) in &self.orders {
+                        sort = match (
+                            expr.evaluate(Some(a)).unwrap_or(Value::Null),
+                            expr.evaluate(Some(b)).unwrap_or(Value::Null),
+                        ) {
+                            (Value::Integer(a), Value::Integer(b)) => match a.cmp(&b) {
+                                Ordering::Equal => {
+                                    continue;
+                                }
+                                Ordering::Less => match direction {
+                                    Direction::Ascending => Ordering::Less,
+                                    Direction::Descending => Ordering::Greater,
+                                },
+                                Ordering::Greater => match direction {
+                                    Direction::Ascending => Ordering::Greater,
+                                    Direction::Descending => Ordering::Less,
+                                },
+                            },
+                            (Value::Float(a), Value::Integer(b)) => {
+                                let b = b as f64;
+                                if a.eq(&b) {
+                                    continue;
+                                } else if a.ge(&b) {
+                                    match direction {
+                                        Direction::Ascending => Ordering::Greater,
+                                        Direction::Descending => Ordering::Less,
+                                    }
+                                } else {
+                                    match direction {
+                                        Direction::Ascending => Ordering::Less,
+                                        Direction::Descending => Ordering::Greater,
+                                    }
+                                }
+                            }
+                            (Value::Integer(a), Value::Float(b)) => {
+                                let a = a as f64;
+                                if a.eq(&b) {
+                                    continue;
+                                } else if a.ge(&b) {
+                                    match direction {
+                                        Direction::Ascending => Ordering::Greater,
+                                        Direction::Descending => Ordering::Less,
+                                    }
+                                } else {
+                                    match direction {
+                                        Direction::Ascending => Ordering::Less,
+                                        Direction::Descending => Ordering::Greater,
+                                    }
+                                }
+                            }
+                            (Value::Float(a), Value::Float(b)) => {
+                                if a.eq(&b) {
+                                    continue;
+                                } else if a.ge(&b) {
+                                    match direction {
+                                        Direction::Ascending => Ordering::Greater,
+                                        Direction::Descending => Ordering::Less,
+                                    }
+                                } else {
+                                    match direction {
+                                        Direction::Ascending => Ordering::Less,
+                                        Direction::Descending => Ordering::Greater,
+                                    }
+                                }
+                            }
+                            (Value::Boolean(a), Value::Boolean(b)) => match a.cmp(&b) {
+                                Ordering::Equal => {
+                                    continue;
+                                }
+                                Ordering::Less => match direction {
+                                    Direction::Ascending => Ordering::Less,
+                                    Direction::Descending => Ordering::Greater,
+                                },
+                                Ordering::Greater => match direction {
+                                    Direction::Ascending => Ordering::Greater,
+                                    Direction::Descending => Ordering::Less,
+                                },
+                            },
+                            (Value::String(a), Value::String(b)) => match a.cmp(&b) {
+                                Ordering::Equal => {
+                                    continue;
+                                }
+                                Ordering::Less => match direction {
+                                    Direction::Ascending => Ordering::Less,
+                                    Direction::Descending => Ordering::Greater,
+                                },
+                                Ordering::Greater => match direction {
+                                    Direction::Ascending => Ordering::Greater,
+                                    Direction::Descending => Ordering::Less,
+                                },
+                            },
+                            (_, _) => Ordering::Greater,
+                        };
+                        break;
+                    }
+                    sort
+                });
+                Ok(ResultSet::Query {
+                    columns,
+                    rows: Box::new(row_array.into_iter().map(|i| Ok(i))),
+                })
+            }
+            r => Err(Error::Internal(format!("Unexpected result {}", r))),
+        }
+    }
 }
 
 impl<C: Catalog> Filter<C> {
