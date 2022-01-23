@@ -27,7 +27,8 @@ fn test_plan() -> Result<()> {
         "UPDATE movies SET title = 'His' WHERE id = 3;",
         "SELECT * FROM movies;",
         "DELETE FROM movies WHERE id = 3;",
-        "SELECT * FROM movies order by id DESC;",
+        "SELECT id as num FROM movies order by num DESC;",
+        "SELECT id as num FROM movies order by num DESC LIMIT 1",
     ];
     let store = Box::new(Memory::new());
     let store_engine = KVStoreEngine::new(store);
@@ -61,7 +62,7 @@ fn test_plan() -> Result<()> {
 
 #[test]
 fn test_select_plan() -> Result<()> {
-    let sqls = ["SELECT id as num from movies order by num;"];
+    let sqls = ["SELECT * from movies limit 10"];
 
     for sql in sqls {
         plan_sql(sql)?;

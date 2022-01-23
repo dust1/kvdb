@@ -91,6 +91,11 @@ pub enum Node {
         source: Box<Node>,
         orders: Vec<(Expression, Direction)>,
     },
+    Limit {
+        source: Box<Node>,
+        offset: usize,
+        limit: Option<usize>,
+    },
 }
 
 impl Node {

@@ -132,7 +132,21 @@ impl<'a, C: Catalog> Planner<'a, C> {
 
         node = self.build_order_node(node, &query.order_by, &mut scope)?;
 
+        if let Some(limit) = &query.limit {
+            node = self.build_limit_node(node, limit)?;
+        }
+
         Ok(node)
+    }
+
+    fn build_limit_node(&mut self, node: Node, limit: &Expr) -> Result<Node> {
+        match limit {
+            Expr::Value(sqlparser::ast::Value::Number(n, _)) => match n.parse::<usize>() {
+                Ok(n) => Ok(Node::Limit { source: Box::new(node), offset: 0, limit: Some(n) }),
+                Err(r) => return Err(Error::Internal(format!("Unknown limit value {}", r))),
+            },
+            e => return Err(Error::Internal(format!("Unknown limit {}", e))),
+        }
     }
 
     fn build_order_node(

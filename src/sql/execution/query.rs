@@ -24,9 +24,72 @@ pub struct Order<C: Catalog> {
     orders: Vec<(Expression, Direction)>,
 }
 
+pub struct GroupBy<C: Catalog> {
+    source: Box<dyn Executor<C>>,
+    groups: Vec<Expression>,
+}
+
+pub struct Limit<C: Catalog> {
+    source: Box<dyn Executor<C>>,
+    offset: usize,
+    limit: Option<usize>,
+}
+
 impl<C: Catalog> Order<C> {
     pub fn new(source: Box<dyn Executor<C>>, orders: Vec<(Expression, Direction)>) -> Box<Self> {
         Box::new(Self { source, orders })
+    }
+}
+
+impl<C: Catalog> Limit<C> {
+    pub fn new(source: Box<dyn Executor<C>>, offset: usize, limit: Option<usize>) -> Box<Self> {
+        Box::new(Self { source, offset, limit })
+    }
+
+    fn check_and_sub(&mut self) -> bool {
+        match self.limit {
+            Some(l) => match l {
+                0 => false,
+                n => {
+                    self.limit = Some(n - 1);
+                    true
+                }
+            },
+            None => true,
+        }
+    }
+}
+
+impl<C: Catalog> GroupBy<C> {
+    pub fn new(source: Box<dyn Executor<C>>, groups: Vec<Expression>) -> Box<Self> {
+        Box::new(Self { source, groups })
+    }
+}
+
+impl<C: Catalog> Executor<C> for Limit<C> {
+    fn execute(self: Box<Self>, catalog: &mut C) -> Result<ResultSet> {
+        match self.source.execute(catalog)? {
+            ResultSet::Query { columns, rows } => {
+                let new_rows = rows.into_iter().skip(self.offset.clone());
+                if let Some(limit) = self.limit {
+                    return Ok(ResultSet::Query { columns, rows: Box::new(new_rows.take(limit)) });
+                }
+
+                Ok(ResultSet::Query { columns, rows: Box::new(new_rows) })
+            }
+            r => Err(Error::Internal(format!("Can't LIMIT {}", r))),
+        }
+    }
+}
+
+impl<C: Catalog> Executor<C> for GroupBy<C> {
+    fn execute(self: Box<Self>, catalog: &mut C) -> Result<ResultSet> {
+        match self.source.execute(catalog)? {
+            ResultSet::Query { columns: _, rows: _ } => {
+                todo!()
+            }
+            r => Err(Error::Internal(format!("Can't GROUP BY {}", r))),
+        }
     }
 }
 

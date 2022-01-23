@@ -17,7 +17,7 @@ use derivative::Derivative;
 use serde_derive::{Deserialize, Serialize};
 
 use self::mutation::{Delete, Update};
-use self::query::Order;
+use self::query::{GroupBy, Limit, Order};
 
 /// a plan executor
 pub trait Executor<C: Catalog> {
@@ -94,8 +94,11 @@ impl<C: Catalog + 'static> dyn Executor<C> {
                 expressions.into_iter().map(|(i, _, e)| (i, e)).collect(),
             ),
             Node::Delete { table, source } => Delete::new(table, Self::build(*source)),
-            Node::GroupBy { source: _, expression: _ } => todo!(),
+            Node::GroupBy { source, expression } => GroupBy::new(Self::build(*source), expression),
             Node::OrderBy { source, orders } => Order::new(Self::build(*source), orders),
+            Node::Limit { source, offset, limit } => {
+                Limit::new(Self::build(*source), offset, limit)
+            }
         }
     }
 }
