@@ -7,3 +7,4 @@ mod error;
 mod server;
 mod sql;
 mod storage;
+mod common;

@@ -78,3 +78,9 @@ impl From<regex::Error> for Error {
         Error::Internal(err.to_string())
     }
 }
+
+impl From<sqlparser::parser::ParserError> for Error {
+    fn from(e: sqlparser::parser::ParserError) -> Self {
+        Error::Internal(e.to_string())
+    }
+}

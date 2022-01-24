@@ -5,5 +5,8 @@ pub mod plan;
 pub mod schema;
 pub mod types;
 
-#[cfg(test)]
-mod test;
+mod sql_parser;
+mod plan_parser;
+
+
+pub use sql_parser::NBParser;
