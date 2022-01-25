@@ -5,7 +5,6 @@ use crate::{error::{Result, Error}, common::PlanNode};
 use super::NBParser;
 
 
-
 pub struct PlanParser;
 
 impl PlanParser {
