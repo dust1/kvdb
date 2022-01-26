@@ -4,6 +4,7 @@ pub mod memory;
 pub mod range;
 
 mod pager;
+mod file;
 
 #[cfg(test)]
 mod test;
