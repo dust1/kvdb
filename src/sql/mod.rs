@@ -5,8 +5,7 @@ pub mod plan;
 pub mod schema;
 pub mod types;
 
+mod statements;
 mod sql_parser;
+mod sql_statement;
 mod plan_parser;
-
-
-pub use sql_parser::NBParser;

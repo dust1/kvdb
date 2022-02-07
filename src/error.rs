@@ -1,4 +1,5 @@
 use serde_derive::{Deserialize, Serialize};
+use sqlparser::tokenizer::TokenizerError;
 use std::fmt::{self, Display, Formatter};
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -81,6 +82,12 @@ impl From<regex::Error> for Error {
 
 impl From<sqlparser::parser::ParserError> for Error {
     fn from(e: sqlparser::parser::ParserError) -> Self {
+        Error::Internal(e.to_string())
+    }
+}
+
+impl From<TokenizerError> for Error {
+    fn from(e: TokenizerError) -> Self {
         Error::Internal(e.to_string())
     }
 }
