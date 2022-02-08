@@ -3,8 +3,8 @@
 #![allow(clippy::unneeded_field_pattern)]
 
 mod client;
+mod common;
 mod error;
 mod server;
 mod sql;
 mod storage;
-mod common;

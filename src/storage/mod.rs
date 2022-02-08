@@ -3,8 +3,8 @@ pub mod kv;
 pub mod memory;
 pub mod range;
 
-mod pager;
 mod file;
+mod pager;
 
 #[cfg(test)]
 mod test;

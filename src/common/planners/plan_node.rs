@@ -1,11 +1,7 @@
 use crate::sql::schema::Table;
 
-
-
 pub enum PlanNode {
     Empty,
-    CreateTable {
-        schema: Table
-    },
+    CreateTable { schema: Table },
     // todo
 }

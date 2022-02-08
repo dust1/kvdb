@@ -1,13 +1,16 @@
-use std::{fs::File, sync::{Arc, RwLock}};
+use std::{
+    fs::File,
+    sync::{Arc, RwLock},
+};
 
 /// how big to make the hash table used for locating in-memory pages
 /// by page number.  Knuth asys this should be a prime number.
-pub const N_PG_HASH:usize = 2003;
+pub const N_PG_HASH: usize = 2003;
 
 pub enum PagerState {
     UNLOCK,
     READLOCK,
-    WRITELOCK
+    WRITELOCK,
 }
 
 /// we can use page by this struct
@@ -24,7 +27,7 @@ pub struct Pager {
     cpfd: Arc<RwLock<File>>,
     // number of pages in the file
     db_size: usize,
-    // dbSize before the current change 
+    // dbSize before the current change
     orig_db_size: usize,
     // Size of database at ckpt_begin()
     ckpt_size: usize,
@@ -86,7 +89,7 @@ struct PgHdr {
     // the page number for this page
     page_no: u32,
     //  Hash collision chain for PgHdr.pgno
-    // |PgHdr| <-> |PgHdr| <-> |PgHdr| 
+    // |PgHdr| <-> |PgHdr| <-> |PgHdr|
     //    p_prev_hash | p_next_hash
     //             |PgHdr|
     p_next_hash: Option<Arc<RwLock<PgHdr>>>,
@@ -104,5 +107,5 @@ struct PgHdr {
     // TRUE if written to the checkpoint
     in_ckpt: bool,
     // TRUE if data change of this page, we need write back changes
-    dirty: bool
+    dirty: bool,
 }

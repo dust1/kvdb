@@ -5,7 +5,7 @@ pub mod plan;
 pub mod schema;
 pub mod types;
 
-mod statements;
+mod plan_parser;
 mod sql_parser;
 mod sql_statement;
-mod plan_parser;
+mod statements;
