@@ -1,5 +1,7 @@
 use sqlparser::ast::{Expr, Ident, ObjectName, Query, SqliteOnConflict};
 
+use super::AnalyzerStatement;
+
 pub struct KVInsertStatement {
     /// Only for Sqlite
     pub or: Option<SqliteOnConflict>,
@@ -17,4 +19,11 @@ pub struct KVInsertStatement {
     pub after_columns: Vec<Ident>,
     /// whether the insert has the table keyword (Hive)
     pub table: bool,
+}
+
+
+impl AnalyzerStatement for KVInsertStatement {
+    fn analyze(&self) -> crate::error::Result<super::analyzer_statement::AnalyzerResult> {
+        todo!()
+    }
 }

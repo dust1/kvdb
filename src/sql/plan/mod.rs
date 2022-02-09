@@ -1,5 +1,8 @@
 mod optimizer;
+mod plan_node;
 pub mod planner;
+
+pub use plan_node::PlanNode;
 
 use serde_derive::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};

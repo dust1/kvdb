@@ -1,11 +1,10 @@
 
 
 use crate::{
-    common::PlanNode,
     error::{Error, Result},
 };
 
-use super::{sql_parser::KVParser, sql_statement::KVStatement};
+use super::{sql_parser::KVParser, sql_statement::KVStatement, statements::{AnalyzerStatement, AnalyzerResult}, plan::PlanNode};
 
 pub struct PlanParser;
 
@@ -20,12 +19,9 @@ impl PlanParser {
             return Err(Error::Internal("Only support single query".into()));
         }
 
-        todo!()
-    }
-
-    pub fn build_sql_plan(stmt: KVStatement) -> Result<PlanNode> {
-        match stmt {
-            _ => todo!(),
+        match stmts[0].analyze()? {
+            AnalyzerResult::SimpleQuery(plan) => Ok(*plan),
         }
     }
+    
 }

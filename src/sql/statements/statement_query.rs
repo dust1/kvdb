@@ -2,6 +2,8 @@ use sqlparser::ast::{Expr, Offset, OrderByExpr, Query, SelectItem, TableWithJoin
 
 use crate::{error::Result};
 
+use super::AnalyzerStatement;
+
 pub struct KVQueryStatement {
     pub from: Vec<TableWithJoins>,
     pub projection: Vec<SelectItem>,
@@ -15,6 +17,12 @@ pub struct KVQueryStatement {
 
 impl KVQueryStatement {
     pub fn try_from(_stmt: Query) -> Result<Self> {
+        todo!()
+    }
+}
+
+impl AnalyzerStatement for KVQueryStatement {
+    fn analyze(&self) -> Result<super::analyzer_statement::AnalyzerResult> {
         todo!()
     }
 }
