@@ -1,12 +1,11 @@
-use sqlparser::ast::{ObjectName, Assignment, Expr};
+use sqlparser::ast::{Assignment, Expr, ObjectName};
 
 use super::AnalyzerStatement;
-
 
 pub struct KVUpdateStatement {
     pub table_name: ObjectName,
     pub assignments: Vec<Assignment>,
-    pub selection: Option<Expr>
+    pub selection: Option<Expr>,
 }
 
 impl AnalyzerStatement for KVUpdateStatement {

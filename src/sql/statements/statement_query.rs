@@ -1,6 +1,6 @@
 use sqlparser::ast::{Expr, Offset, OrderByExpr, Query, SelectItem, TableWithJoins};
 
-use crate::{error::Result};
+use crate::error::Result;
 
 use super::AnalyzerStatement;
 

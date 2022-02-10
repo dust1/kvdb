@@ -1,10 +1,11 @@
+use crate::error::{Error, Result};
 
-
-use crate::{
-    error::{Error, Result},
+use super::{
+    plan::PlanNode,
+    sql_parser::KVParser,
+    sql_statement::KVStatement,
+    statements::{AnalyzerResult, AnalyzerStatement},
 };
-
-use super::{sql_parser::KVParser, sql_statement::KVStatement, statements::{AnalyzerStatement, AnalyzerResult}, plan::PlanNode};
 
 pub struct PlanParser;
 
@@ -23,5 +24,4 @@ impl PlanParser {
             AnalyzerResult::SimpleQuery(plan) => Ok(*plan),
         }
     }
-    
 }

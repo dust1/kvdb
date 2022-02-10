@@ -21,7 +21,6 @@ pub struct KVInsertStatement {
     pub table: bool,
 }
 
-
 impl AnalyzerStatement for KVInsertStatement {
     fn analyze(&self) -> crate::error::Result<super::analyzer_statement::AnalyzerResult> {
         todo!()

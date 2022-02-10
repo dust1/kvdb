@@ -4,7 +4,7 @@ use super::AnalyzerStatement;
 
 pub struct KVDropTableStatement {
     pub if_exists: bool,
-    pub names: Vec<ObjectName>
+    pub names: Vec<ObjectName>,
 }
 
 impl AnalyzerStatement for KVDropTableStatement {

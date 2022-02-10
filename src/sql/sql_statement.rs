@@ -1,4 +1,7 @@
-use super::statements::{KVInsertStatement, KVQueryStatement, KVDropTableStatement, KVCreateTableStatement, KVDeleteStatement, KVUpdateStatement};
+use super::statements::{
+    KVCreateTableStatement, KVDeleteStatement, KVDropTableStatement, KVInsertStatement,
+    KVQueryStatement, KVUpdateStatement,
+};
 
 pub enum KVStatement {
     Query(KVQueryStatement),

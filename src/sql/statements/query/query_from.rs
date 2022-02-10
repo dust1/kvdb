@@ -1,6 +1,3 @@
-
 pub struct QueryFrom;
 
-impl QueryFrom {
-    
-}
+impl QueryFrom {}

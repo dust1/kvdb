@@ -1,15 +1,18 @@
 use sqlparser::{
     ast::{ObjectName, ObjectType, Query, Statement},
-    dialect::{GenericDialect},
+    dialect::GenericDialect,
     parser::Parser,
 };
 
 use crate::{
     error::{Error, Result},
-    sql::statements::{KVInsertStatement, KVCreateTableStatement, KVUpdateStatement},
+    sql::statements::{KVCreateTableStatement, KVInsertStatement, KVUpdateStatement},
 };
 
-use super::{sql_statement::KVStatement, statements::{KVQueryStatement, KVDropTableStatement, KVDeleteStatement}};
+use super::{
+    sql_statement::KVStatement,
+    statements::{KVDeleteStatement, KVDropTableStatement, KVQueryStatement},
+};
 
 macro_rules! parser_err {
     ($MSG:expr) => {
@@ -59,10 +62,7 @@ impl KVParser {
     }
 
     fn parse_drop_table(if_exists: bool, names: Vec<ObjectName>) -> Result<KVStatement> {
-        Ok(KVStatement::DropTable(KVDropTableStatement {
-            if_exists,
-            names
-        }))
+        Ok(KVStatement::DropTable(KVDropTableStatement { if_exists, names }))
     }
 
     fn parse_create_table(stmt: Statement) -> Result<KVStatement> {
@@ -75,44 +75,32 @@ impl KVParser {
                 query,
                 like,
                 ..
-            } => {
-                Ok(KVStatement::CreateTable(KVCreateTableStatement {
-                    if_not_exists,
-                    name,
-                    columns,
-                    config: table_properties,
-                    query,
-                    like
-                }))
-            },
+            } => Ok(KVStatement::CreateTable(KVCreateTableStatement {
+                if_not_exists,
+                name,
+                columns,
+                config: table_properties,
+                query,
+                like,
+            })),
             _ => parser_err!("Expect set create table statement"),
         }
     }
 
     fn parse_delete(stmt: Statement) -> Result<KVStatement> {
         match stmt {
-            Statement::Delete {
-                table_name,
-                selection
-            } => Ok(KVStatement::Delete(KVDeleteStatement {
-                table_name,
-                selection
-            })),
+            Statement::Delete { table_name, selection } => {
+                Ok(KVStatement::Delete(KVDeleteStatement { table_name, selection }))
+            }
             _ => parser_err!("Expect set create table statement"),
         }
     }
 
     fn parse_update(stmt: Statement) -> Result<KVStatement> {
         match stmt {
-            Statement::Update {
-                table_name,
-                assignments,
-                selection
-            } => Ok(KVStatement::Update(KVUpdateStatement {
-                table_name,
-                assignments,
-                selection
-            })),
+            Statement::Update { table_name, assignments, selection } => {
+                Ok(KVStatement::Update(KVUpdateStatement { table_name, assignments, selection }))
+            }
             _ => parser_err!("Expect set create table statement"),
         }
     }
@@ -146,5 +134,4 @@ impl KVParser {
             _ => parser_err!("Expect set insert statement"),
         }
     }
-
 }

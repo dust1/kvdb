@@ -1,9 +1,14 @@
-use sqlparser::ast::{ObjectName, ColumnDef, SqlOption, Query};
+use sqlparser::ast::{ColumnDef, ObjectName, Query, SqlOption};
 
-use crate::{error::Result, sql::{plan::PlanNode, schema::{Table, Column}}};
+use crate::{
+    error::Result,
+    sql::{
+        plan::PlanNode,
+        schema::{Column, Table},
+    },
+};
 
-use super::{AnalyzerStatement, AnalyzerResult};
-
+use super::{AnalyzerResult, AnalyzerStatement};
 
 pub struct KVCreateTableStatement {
     pub if_not_exists: bool,

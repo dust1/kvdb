@@ -1,10 +1,12 @@
 use serde_derive::{Deserialize, Serialize};
-use sqlparser::ast::{ObjectName, ColumnDef, ColumnOption};
+use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
 
-use crate::{error::{Result, Error}, sql::engine::kv::KV};
+use crate::{
+    error::{Error, Result},
+    sql::engine::kv::KV,
+};
 
 use super::{data_type::DataType, data_value::Value};
-
 
 pub type Row = Vec<Value>;
 

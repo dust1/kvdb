@@ -1,11 +1,10 @@
-use sqlparser::ast::{ObjectName, Expr};
+use sqlparser::ast::{Expr, ObjectName};
 
 use super::AnalyzerStatement;
 
-
 pub struct KVDeleteStatement {
     pub table_name: ObjectName,
-    pub selection: Option<Expr>
+    pub selection: Option<Expr>,
 }
 
 impl AnalyzerStatement for KVDeleteStatement {
