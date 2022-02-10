@@ -125,7 +125,6 @@ impl<'a, C: Catalog> Planner<'a, C> {
 
     /// by select
     fn query_to_plan(&mut self, query: &Query) -> Result<Node> {
-        println!("{:?}", query);
         let mut scope = Scope::new();
         let set_expr = &query.body;
         let mut node = self.set_expr_to_plan(set_expr, &mut scope)?;

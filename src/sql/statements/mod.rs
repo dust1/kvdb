@@ -5,6 +5,7 @@ mod statement_create_table;
 mod statement_delete;
 mod statement_update;
 mod analyzer_statement;
+mod query;
 
 pub use analyzer_statement::AnalyzerStatement;
 pub use analyzer_statement::AnalyzerResult;

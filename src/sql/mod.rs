@@ -8,4 +8,5 @@ pub mod types;
 mod plan_parser;
 mod sql_parser;
 mod sql_statement;
+mod data;
 mod statements;

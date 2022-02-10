@@ -1,6 +1,8 @@
 use sqlparser::ast::{ObjectName, ColumnDef, SqlOption, Query};
 
-use super::AnalyzerStatement;
+use crate::{error::Result, sql::{plan::PlanNode, schema::{Table, Column}}};
+
+use super::{AnalyzerStatement, AnalyzerResult};
 
 
 pub struct KVCreateTableStatement {
@@ -13,7 +15,17 @@ pub struct KVCreateTableStatement {
 }
 
 impl AnalyzerStatement for KVCreateTableStatement {
-    fn analyze(&self) -> crate::error::Result<super::analyzer_statement::AnalyzerResult> {
+    fn analyze(&self) -> Result<AnalyzerResult> {
+        // let columns = self.columns.iter().map(Column).collect::<Vec<_>>();
+        // let table = Table {
+        //     name: self.name.to_string(),
+        //     columns
+        // };
+        // Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::CreateTable {
+        //     schema: Table {
+        //         name
+        //     }
+        // })))
         todo!()
     }
 }
