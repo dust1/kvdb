@@ -1,6 +1,10 @@
-use serde_derive::{Deserialize, Serialize};
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::{self};
+
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
 use sqlparser::tokenizer::TokenizerError;
-use std::fmt::{self, Display, Formatter};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

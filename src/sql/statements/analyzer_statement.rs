@@ -1,7 +1,6 @@
-use crate::{
-    error::Result,
-    sql::{plan::PlanNode, sql_statement::KVStatement},
-};
+use crate::error::Result;
+use crate::sql::plan::PlanNode;
+use crate::sql::sql_statement::KVStatement;
 
 pub enum AnalyzerResult {
     SimpleQuery(Box<PlanNode>),

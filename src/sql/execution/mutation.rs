@@ -1,10 +1,14 @@
 use std::collections::HashSet;
 
-use crate::error::{Error, Result};
-use crate::sql::execution::{Executor, ResultSet};
-use crate::sql::schema::{Catalog, Table};
+use crate::error::Error;
+use crate::error::Result;
+use crate::sql::execution::Executor;
+use crate::sql::execution::ResultSet;
+use crate::sql::schema::Catalog;
+use crate::sql::schema::Table;
 use crate::sql::types::expression::Expression;
-use crate::sql::types::{Row, Value};
+use crate::sql::types::Row;
+use crate::sql::types::Value;
 
 /// An INSERT Executor
 pub struct Insert {
@@ -27,14 +31,20 @@ pub struct Delete<C: Catalog> {
 
 impl Insert {
     pub fn new(table: String, columns: Vec<String>, rows: Vec<Vec<Expression>>) -> Box<Self> {
-        Box::new(Self { table, columns, rows })
+        Box::new(Self {
+            table,
+            columns,
+            rows,
+        })
     }
 
     /// build a row from a set of column names and values,
     /// padding it with default value
     pub fn make_row(table: &Table, columns: &[String], values: Vec<Value>) -> Result<Row> {
         if columns.len() != values.len() {
-            return Err(Error::Value("INSERT column size not equals VALUES size".into()));
+            return Err(Error::Value(
+                "INSERT column size not equals VALUES size".into(),
+            ));
         }
         let mut row = Row::new();
         let mut index = 0;
@@ -51,7 +61,10 @@ impl Insert {
                     }
                 }
                 _ => {
-                    return Err(Error::Value(format!("Column {} not have default", column.name)));
+                    return Err(Error::Value(format!(
+                        "Column {} not have default",
+                        column.name
+                    )));
                 }
             }
         }
@@ -119,8 +132,10 @@ impl<C: Catalog> Executor<C> for Insert {
         let mut count = 0;
         for expressions in self.rows {
             // data source
-            let mut row =
-                expressions.into_iter().map(|expr| expr.evaluate(None)).collect::<Result<_>>()?;
+            let mut row = expressions
+                .into_iter()
+                .map(|expr| expr.evaluate(None))
+                .collect::<Result<_>>()?;
             if self.columns.is_empty() {
                 // e.g. INSERT INTO table VALUES (1, "name");
                 // the column not specified
@@ -142,7 +157,11 @@ impl<C: Catalog> Update<C> {
         source: Box<dyn Executor<C>>,
         expressions: Vec<(usize, Expression)>,
     ) -> Box<Self> {
-        Box::new(Self { table: table_name, source, expressions })
+        Box::new(Self {
+            table: table_name,
+            source,
+            expressions,
+        })
     }
 }
 
@@ -165,7 +184,9 @@ impl<C: Catalog> Executor<C> for Update<C> {
                     catalog.update(&table.name, &id, new)?;
                     update.insert(id);
                 }
-                Ok(ResultSet::Update { count: update.len() as u64 })
+                Ok(ResultSet::Update {
+                    count: update.len() as u64,
+                })
             }
             r => Err(Error::Internal(format!("Unexpected response: {:?}", r))),
         }
@@ -174,7 +195,10 @@ impl<C: Catalog> Executor<C> for Update<C> {
 
 impl<C: Catalog> Delete<C> {
     pub fn new(table_name: String, source: Box<dyn Executor<C>>) -> Box<Self> {
-        Box::new(Self { table: table_name, source })
+        Box::new(Self {
+            table: table_name,
+            source,
+        })
     }
 }
 
@@ -192,7 +216,9 @@ impl<C: Catalog> Executor<C> for Delete<C> {
                     catalog.delete(&table.name, &id)?;
                     deleted.insert(id);
                 }
-                Ok(ResultSet::Delete { count: deleted.len() as u64 })
+                Ok(ResultSet::Delete {
+                    count: deleted.len() as u64,
+                })
             }
             r => Err(Error::Internal(format!("Unexpected response: {:?}", r))),
         }

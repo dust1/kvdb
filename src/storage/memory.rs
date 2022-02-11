@@ -1,6 +1,10 @@
-use crate::storage::{Range, Scan, Store};
 use std::collections::BTreeMap;
-use std::fmt::{Display, Formatter};
+use std::fmt::Display;
+use std::fmt::Formatter;
+
+use crate::storage::Range;
+use crate::storage::Scan;
+use crate::storage::Store;
 
 pub struct Memory {
     root: BTreeMap<Vec<u8>, Vec<u8>>,
@@ -8,7 +12,9 @@ pub struct Memory {
 
 impl Memory {
     pub fn new() -> Self {
-        Self { root: BTreeMap::new() }
+        Self {
+            root: BTreeMap::new(),
+        }
     }
 }
 

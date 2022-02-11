@@ -2,16 +2,20 @@ mod optimizer;
 mod plan_node;
 pub mod planner;
 
-pub use plan_node::PlanNode;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
-use serde_derive::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
+pub use plan_node::PlanNode;
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
 
 use crate::error::Result;
-use crate::sql::execution::{Executor, ResultSet};
+use crate::sql::execution::Executor;
+use crate::sql::execution::ResultSet;
 use crate::sql::parser::ast::KVStatement;
 use crate::sql::plan::planner::Planner;
-use crate::sql::schema::{Catalog, Table};
+use crate::sql::schema::Catalog;
+use crate::sql::schema::Table;
 use crate::sql::types::expression::Expression;
 
 /// a query plan
@@ -122,13 +126,20 @@ impl Node {
                 s += &format!("Filter: {}\n", predicate);
                 s += &source.format(indent, false, true);
             }
-            Self::Insert { table, columns: _, expressions } => {
+            Self::Insert {
+                table,
+                columns: _,
+                expressions,
+            } => {
                 s += &format!("Insert: {} ({} rows)\n", table, expressions.len());
             }
             Self::Nothing {} => {
                 s += "Nothing\n";
             }
-            Self::Projection { source, expressions } => {
+            Self::Projection {
+                source,
+                expressions,
+            } => {
                 s += &format!(
                     "Projection: {}\n",
                     expressions
@@ -139,7 +150,11 @@ impl Node {
                 );
                 s += &source.format(indent, false, true);
             }
-            Self::Scan { table, alias, filter } => {
+            Self::Scan {
+                table,
+                alias,
+                filter,
+            } => {
                 s += &format!("Scan: {}", table);
                 if let Some(alias) = alias {
                     s += &format!(" as {}", alias);

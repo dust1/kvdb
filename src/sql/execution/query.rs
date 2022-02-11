@@ -1,11 +1,15 @@
 use std::cmp::Ordering;
 
-use crate::error::{Error, Result};
-use crate::sql::execution::{Executor, ResultSet};
+use crate::error::Error;
+use crate::error::Result;
+use crate::sql::execution::Executor;
+use crate::sql::execution::ResultSet;
 use crate::sql::plan::Direction;
 use crate::sql::schema::Catalog;
 use crate::sql::types::expression::Expression;
-use crate::sql::types::{Column, Row, Value};
+use crate::sql::types::Column;
+use crate::sql::types::Row;
+use crate::sql::types::Value;
 
 /// a filter executor
 pub struct Filter<C: Catalog> {
@@ -43,7 +47,11 @@ impl<C: Catalog> Order<C> {
 
 impl<C: Catalog> Limit<C> {
     pub fn new(source: Box<dyn Executor<C>>, offset: usize, limit: Option<usize>) -> Box<Self> {
-        Box::new(Self { source, offset, limit })
+        Box::new(Self {
+            source,
+            offset,
+            limit,
+        })
     }
 
     fn check_and_sub(&mut self) -> bool {
@@ -72,10 +80,16 @@ impl<C: Catalog> Executor<C> for Limit<C> {
             ResultSet::Query { columns, rows } => {
                 let new_rows = rows.into_iter().skip(self.offset.clone());
                 if let Some(limit) = self.limit {
-                    return Ok(ResultSet::Query { columns, rows: Box::new(new_rows.take(limit)) });
+                    return Ok(ResultSet::Query {
+                        columns,
+                        rows: Box::new(new_rows.take(limit)),
+                    });
                 }
 
-                Ok(ResultSet::Query { columns, rows: Box::new(new_rows) })
+                Ok(ResultSet::Query {
+                    columns,
+                    rows: Box::new(new_rows),
+                })
             }
             r => Err(Error::Internal(format!("Can't LIMIT {}", r))),
         }
@@ -85,7 +99,10 @@ impl<C: Catalog> Executor<C> for Limit<C> {
 impl<C: Catalog> Executor<C> for GroupBy<C> {
     fn execute(self: Box<Self>, catalog: &mut C) -> Result<ResultSet> {
         match self.source.execute(catalog)? {
-            ResultSet::Query { columns: _, rows: _ } => {
+            ResultSet::Query {
+                columns: _,
+                rows: _,
+            } => {
                 todo!()
             }
             r => Err(Error::Internal(format!("Can't GROUP BY {}", r))),
@@ -245,7 +262,10 @@ impl<C: Catalog> Projection<C> {
         source: Box<dyn Executor<C>>,
         expressions: Vec<(Expression, Option<String>)>,
     ) -> Box<Self> {
-        Box::new(Self { source, expressions })
+        Box::new(Self {
+            source,
+            expressions,
+        })
     }
 }
 
@@ -262,7 +282,9 @@ impl<C: Catalog> Executor<C> for Projection<C> {
                 .enumerate()
                 .map(|(i, e)| {
                     if let Some(Some(label)) = labels.get(i) {
-                        Column { name: Some(label.clone()) }
+                        Column {
+                            name: Some(label.clone()),
+                        }
                     } else if let Expression::Field(i, _) = e {
                         columns.get(*i).cloned().unwrap_or(Column { name: None })
                     } else {
@@ -273,7 +295,10 @@ impl<C: Catalog> Executor<C> for Projection<C> {
             // execute expression recursively
             let rows = Box::new(rows.map(move |r| {
                 r.and_then(|row| {
-                    expressions.iter().map(|e| e.evaluate(Some(&row))).collect::<Result<_>>()
+                    expressions
+                        .iter()
+                        .map(|e| e.evaluate(Some(&row)))
+                        .collect::<Result<_>>()
                 })
             }));
             Ok(ResultSet::Query { columns, rows })

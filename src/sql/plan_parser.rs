@@ -1,11 +1,10 @@
-use crate::error::{Error, Result};
-
-use super::{
-    plan::PlanNode,
-    sql_parser::KVParser,
-    sql_statement::KVStatement,
-    statements::{AnalyzerResult, AnalyzerStatement},
-};
+use super::plan::PlanNode;
+use super::sql_parser::KVParser;
+use super::sql_statement::KVStatement;
+use super::statements::AnalyzerResult;
+use super::statements::AnalyzerStatement;
+use crate::error::Error;
+use crate::error::Result;
 
 pub struct PlanParser;
 

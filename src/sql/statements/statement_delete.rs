@@ -1,4 +1,5 @@
-use sqlparser::ast::{Expr, ObjectName};
+use sqlparser::ast::Expr;
+use sqlparser::ast::ObjectName;
 
 use super::AnalyzerStatement;
 

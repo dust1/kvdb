@@ -1,5 +1,7 @@
-use crate::sql::execution::{Executor, ResultSet};
-use crate::sql::schema::{Catalog, Table};
+use crate::sql::execution::Executor;
+use crate::sql::execution::ResultSet;
+use crate::sql::schema::Catalog;
+use crate::sql::schema::Table;
 
 pub struct CreateTable {
     table: Table,

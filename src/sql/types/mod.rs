@@ -1,12 +1,16 @@
 pub mod expression;
 
-use crate::error::Result;
-use serde_derive::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::hash::Hash;
+
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
 use sqlparser::ast::Expr;
 use sqlparser::ast::Value as ExprValue;
-use std::borrow::Cow;
-use std::fmt::{Display, Formatter};
-use std::hash::Hash;
+
+use crate::error::Result;
 
 /// a row of values
 pub type Row = Vec<Value>;

@@ -1,12 +1,20 @@
-use crate::error::{Error, Result};
-use crate::sql::engine::Scan;
-use crate::sql::schema::{Catalog, Table, Tables};
-use crate::sql::types::expression::Expression;
-use crate::sql::types::{Row, Value};
-use crate::storage::kv::encoding::{encode_string, encode_value};
-use crate::storage::kv::engine::KVStoreEngine;
-use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+
+use serde::Deserialize;
+use serde::Serialize;
+
+use crate::error::Error;
+use crate::error::Result;
+use crate::sql::engine::Scan;
+use crate::sql::schema::Catalog;
+use crate::sql::schema::Table;
+use crate::sql::schema::Tables;
+use crate::sql::types::expression::Expression;
+use crate::sql::types::Row;
+use crate::sql::types::Value;
+use crate::storage::kv::encoding::encode_string;
+use crate::storage::kv::encoding::encode_value;
+use crate::storage::kv::engine::KVStoreEngine;
 
 /// A SQL engine based KVStoreEngine
 pub struct KV {
@@ -48,7 +56,10 @@ impl Catalog for KV {
         }
 
         table.validate(self)?;
-        self.kv.set(&Key::Table(Some((&table.name).into())).encode(), serialize(&table)?)
+        self.kv.set(
+            &Key::Table(Some((&table.name).into())).encode(),
+            serialize(&table)?,
+        )
     }
 
     fn delete_table(&mut self, table: &str) -> Result<()> {
@@ -63,11 +74,15 @@ impl Catalog for KV {
         while let Some(row) = scan.next().transpose()? {
             self.delete(&table.name, &table.get_row_key(&row)?)?;
         }
-        self.kv.delete(&Key::Table(Some(table.name.into())).encode())
+        self.kv
+            .delete(&Key::Table(Some(table.name.into())).encode())
     }
 
     fn read_table(&self, table: &str) -> crate::error::Result<Option<Table>> {
-        self.kv.get(&Key::Table(Some(table.into())).encode())?.map(|v| deserialize(&v)).transpose()
+        self.kv
+            .get(&Key::Table(Some(table.into())).encode())?
+            .map(|v| deserialize(&v))
+            .transpose()
     }
 
     fn scan_table(&self) -> Result<Tables> {
@@ -136,7 +151,8 @@ impl Catalog for KV {
         // let table = self.must_read_table(table)?;
         // TODO 1. check reference
         // TODO 2. remove index
-        self.kv.delete(&Key::Row(Cow::Borrowed(table), Some(Cow::Borrowed(&id))).encode())
+        self.kv
+            .delete(&Key::Row(Cow::Borrowed(table), Some(Cow::Borrowed(&id))).encode())
     }
 
     fn update(&mut self, table: &str, id: &Value, row: Row) -> Result<()> {

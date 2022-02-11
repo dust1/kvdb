@@ -1,9 +1,14 @@
-use regex::Regex;
-use serde_derive::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
+use std::fmt::Display;
+use std::fmt::Formatter;
 
-use crate::error::{Error, Result};
-use crate::sql::types::{Row, Value};
+use regex::Regex;
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
+
+use crate::error::Error;
+use crate::error::Result;
+use crate::sql::types::Row;
+use crate::sql::types::Value;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expression {
@@ -90,7 +95,10 @@ impl Expression {
                 (String(lhs), String(rhs)) => Boolean(lhs == rhs),
                 (Null, _) | (_, Null) => Null,
                 (lhs, rhs) => {
-                    return Err(Error::Internal(format!("Can't compare {} and {}", lhs, rhs)))
+                    return Err(Error::Internal(format!(
+                        "Can't compare {} and {}",
+                        lhs, rhs
+                    )))
                 }
             },
             Self::LessThan(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
@@ -140,7 +148,10 @@ impl Expression {
                 (Null, Boolean(rhs)) if !rhs => Boolean(false),
                 (Boolean(_), Null) | (Null, Boolean(_)) | (Null, Null) => Null,
                 (lhs, rhs) => {
-                    return Err(Error::Internal(format!("Can't compare {} and {}", lhs, rhs)))
+                    return Err(Error::Internal(format!(
+                        "Can't compare {} and {}",
+                        lhs, rhs
+                    )))
                 }
             },
             Self::Not(expr) => match expr.evaluate(row)? {
@@ -153,14 +164,18 @@ impl Expression {
                 Integer(i) => Integer(i),
                 Null => Null,
                 expr => {
-                    return Err(Error::Internal(format!("Can't take the positive of {}", expr)))
+                    return Err(Error::Internal(format!(
+                        "Can't take the positive of {}",
+                        expr
+                    )))
                 }
             },
             // here determines our calculation rules
             // e.g. 1 + NULL = 1 or 1 + NULL = NULL
             Self::Add(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
                 (Integer(lhs), Integer(rhs)) => Integer(
-                    lhs.checked_add(rhs).ok_or_else(|| Error::Value("Integer overflow".into()))?,
+                    lhs.checked_add(rhs)
+                        .ok_or_else(|| Error::Value("Integer overflow".into()))?,
                 ),
                 (Integer(lhs), Float(rhs)) => Float(lhs as f64 + rhs),
                 (Integer(_), Null) | (Null, Integer(_)) => Null,
@@ -169,7 +184,10 @@ impl Expression {
                 (Float(_), Null) | (Null, Float(_)) => Null,
                 (Null, Null) => Null,
                 (lhs, rhs) => {
-                    return Err(Error::Internal(format!("Can't add the {} and {}", lhs, rhs)))
+                    return Err(Error::Internal(format!(
+                        "Can't add the {} and {}",
+                        lhs, rhs
+                    )))
                 }
             },
             Self::Divide(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
@@ -215,7 +233,8 @@ impl Expression {
             },
             Self::Negate(expr) => match expr.evaluate(row)? {
                 Integer(expr) => Integer(
-                    expr.checked_neg().ok_or_else(|| Error::Value(format!("{} overflow", expr)))?,
+                    expr.checked_neg()
+                        .ok_or_else(|| Error::Value(format!("{} overflow", expr)))?,
                 ),
                 Float(expr) => Float(-expr),
                 Null => Null,

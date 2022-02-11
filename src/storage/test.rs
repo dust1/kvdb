@@ -13,10 +13,23 @@ struct Test {
 #[test]
 fn test_memory_kv() -> Result<()> {
     let tests = [
-        Test { key: b"a", value: b"aaaaa", range: None, range_value: vec![] },
-        Test { key: b"b", value: b"bbbbbbb", range: None, range_value: vec![] },
         Test {
-            key: "张三".as_bytes(), value: "李四".as_bytes(), range: None, range_value: vec![]
+            key: b"a",
+            value: b"aaaaa",
+            range: None,
+            range_value: vec![],
+        },
+        Test {
+            key: b"b",
+            value: b"bbbbbbb",
+            range: None,
+            range_value: vec![],
+        },
+        Test {
+            key: "张三".as_bytes(),
+            value: "李四".as_bytes(),
+            range: None,
+            range_value: vec![],
         },
         Test {
             key: b"c",

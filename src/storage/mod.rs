@@ -9,9 +9,11 @@ mod pager;
 #[cfg(test)]
 mod test;
 
-use crate::error::Result;
-use crate::storage::range::{Range, Scan};
 use std::fmt::Display;
+
+use crate::error::Result;
+use crate::storage::range::Range;
+use crate::storage::range::Scan;
 
 /// A key/value store.
 pub trait Store: Display + Send + Sync {

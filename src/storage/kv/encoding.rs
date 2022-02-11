@@ -1,8 +1,8 @@
-use crate::{
-    error::{Error, Result},
-    sql::types::Value,
-};
 use std::vec::Vec;
+
+use crate::error::Error;
+use crate::error::Result;
+use crate::sql::types::Value;
 
 /// Encodes a u64. Simply uses the big-endian form, which preserves order. Does not attempt to
 /// compress it, for now.

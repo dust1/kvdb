@@ -1,8 +1,9 @@
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
 
-use crate::sql::schema::Table;
+use crate::sql::data::DataTable;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlanNode {
-    CreateTable { schema: Table },
+    CreateTable { schema: DataTable },
 }

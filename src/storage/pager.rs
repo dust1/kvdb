@@ -1,7 +1,6 @@
-use std::{
-    fs::File,
-    sync::{Arc, RwLock},
-};
+use std::fs::File;
+use std::sync::Arc;
+use std::sync::RwLock;
 
 /// how big to make the hash table used for locating in-memory pages
 /// by page number.  Knuth asys this should be a prime number.

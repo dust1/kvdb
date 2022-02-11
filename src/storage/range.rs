@@ -1,5 +1,7 @@
+use std::ops::Bound;
+use std::ops::RangeBounds;
+
 use crate::error::Result;
-use std::ops::{Bound, RangeBounds};
 
 /// A scan range.
 pub struct Range {

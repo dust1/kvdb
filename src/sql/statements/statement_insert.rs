@@ -1,4 +1,8 @@
-use sqlparser::ast::{Expr, Ident, ObjectName, Query, SqliteOnConflict};
+use sqlparser::ast::Expr;
+use sqlparser::ast::Ident;
+use sqlparser::ast::ObjectName;
+use sqlparser::ast::Query;
+use sqlparser::ast::SqliteOnConflict;
 
 use super::AnalyzerStatement;
 

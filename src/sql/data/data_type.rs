@@ -1,4 +1,6 @@
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
+use sqlparser::ast::DataType as SQLDataType;
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum DataType {
@@ -6,4 +8,18 @@ pub enum DataType {
     Integer,
     Float,
     String,
+}
+
+impl DataType {
+    pub fn try_form(t: &SQLDataType) -> Self {
+        match t {
+            SQLDataType::Boolean => DataType::Boolean,
+            SQLDataType::Int(_)
+            | SQLDataType::BigInt(_)
+            | SQLDataType::TinyInt(_)
+            | SQLDataType::SmallInt(_) => DataType::Integer,
+            SQLDataType::Float(_) => DataType::Float,
+            _ => DataType::String,
+        }
+    }
 }

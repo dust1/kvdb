@@ -1,7 +1,9 @@
-use crate::sql::execution::{Executor, ResultSet};
+use crate::sql::execution::Executor;
+use crate::sql::execution::ResultSet;
 use crate::sql::schema::Catalog;
 use crate::sql::types::expression::Expression;
-use crate::sql::types::{Column, Row};
+use crate::sql::types::Column;
+use crate::sql::types::Row;
 
 /// An executor that produces a single empty row
 pub struct Nothing;
@@ -37,7 +39,13 @@ impl<C: Catalog> Executor<C> for Scan {
     fn execute(self: Box<Self>, catalog: &mut C) -> crate::error::Result<ResultSet> {
         let table = catalog.must_read_table(&self.table)?;
         Ok(ResultSet::Query {
-            columns: table.columns.iter().map(|c| Column { name: Some(c.name.clone()) }).collect(),
+            columns: table
+                .columns
+                .iter()
+                .map(|c| Column {
+                    name: Some(c.name.clone()),
+                })
+                .collect(),
             rows: Box::new(catalog.scan(&table.name, self.filter)?),
         })
     }

@@ -10,7 +10,9 @@ pub type Scan = Box<dyn DoubleEndedIterator<Item = Result<Row>> + Send>;
 pub trait Engine: Clone {
     // begin a session
     fn session(&self) -> Result<Session<Self>> {
-        Ok(Session { engine: self.clone() })
+        Ok(Session {
+            engine: self.clone(),
+        })
     }
 }
 

@@ -1,14 +1,14 @@
-use sqlparser::ast::{ColumnDef, ObjectName, Query, SqlOption};
+use sqlparser::ast::ColumnDef;
+use sqlparser::ast::ObjectName;
+use sqlparser::ast::Query;
+use sqlparser::ast::SqlOption;
 
-use crate::{
-    error::Result,
-    sql::{
-        plan::PlanNode,
-        schema::{Column, Table},
-    },
-};
-
-use super::{AnalyzerResult, AnalyzerStatement};
+use super::AnalyzerResult;
+use super::AnalyzerStatement;
+use crate::error::Result;
+use crate::sql::data::DataColumn;
+use crate::sql::data::DataTable;
+use crate::sql::plan::PlanNode;
 
 pub struct KVCreateTableStatement {
     pub if_not_exists: bool,
@@ -21,16 +21,17 @@ pub struct KVCreateTableStatement {
 
 impl AnalyzerStatement for KVCreateTableStatement {
     fn analyze(&self) -> Result<AnalyzerResult> {
-        // let columns = self.columns.iter().map(Column).collect::<Vec<_>>();
-        // let table = Table {
-        //     name: self.name.to_string(),
-        //     columns
-        // };
-        // Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::CreateTable {
-        //     schema: Table {
-        //         name
-        //     }
-        // })))
-        todo!()
+        let columns = self
+            .columns
+            .iter()
+            .map(DataColumn::try_form)
+            .collect::<Vec<_>>();
+        let table = DataTable {
+            name: self.name.to_string(),
+            columns,
+        };
+        Ok(AnalyzerResult::SimpleQuery(Box::new(
+            PlanNode::CreateTable { schema: table },
+        )))
     }
 }

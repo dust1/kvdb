@@ -1,8 +1,12 @@
-use sqlparser::ast::{Expr, Offset, OrderByExpr, Query, SelectItem, TableWithJoins};
-
-use crate::error::Result;
+use sqlparser::ast::Expr;
+use sqlparser::ast::Offset;
+use sqlparser::ast::OrderByExpr;
+use sqlparser::ast::Query;
+use sqlparser::ast::SelectItem;
+use sqlparser::ast::TableWithJoins;
 
 use super::AnalyzerStatement;
+use crate::error::Result;
 
 pub struct KVQueryStatement {
     pub from: Vec<TableWithJoins>,

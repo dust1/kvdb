@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod test {
-    use sqlparser::{dialect::GenericDialect, parser::Parser};
+    use sqlparser::dialect::GenericDialect;
+    use sqlparser::parser::Parser;
 
     #[test]
     fn parse_test() {

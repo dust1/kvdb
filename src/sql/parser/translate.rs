@@ -1,5 +1,12 @@
-use crate::error::{Error, Result};
-use sqlparser::ast::{Assignment, ColumnDef, Expr, Ident, ObjectName, Query};
+use sqlparser::ast::Assignment;
+use sqlparser::ast::ColumnDef;
+use sqlparser::ast::Expr;
+use sqlparser::ast::Ident;
+use sqlparser::ast::ObjectName;
+use sqlparser::ast::Query;
+
+use crate::error::Error;
+use crate::error::Result;
 
 pub fn translate_object_name(sql_object_name: &ObjectName) -> ObjectName {
     sql_object_name.clone()

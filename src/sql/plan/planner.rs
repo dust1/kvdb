@@ -1,16 +1,28 @@
-use crate::error::{Error, Result};
-use crate::sql::parser::ast::KVStatement;
-use crate::sql::plan::{Node, Plan};
-use crate::sql::schema::{Catalog, Table};
-use crate::sql::types::expression::Expression;
-use crate::sql::types::Value;
-use sqlparser::ast::{
-    Assignment, Expr, Ident, Join, OrderByExpr, Query, Select, SelectItem, SetExpr, TableFactor,
-    TableWithJoins,
-};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::collections::HashSet;
+
+use sqlparser::ast::Assignment;
+use sqlparser::ast::Expr;
+use sqlparser::ast::Ident;
+use sqlparser::ast::Join;
+use sqlparser::ast::OrderByExpr;
+use sqlparser::ast::Query;
+use sqlparser::ast::Select;
+use sqlparser::ast::SelectItem;
+use sqlparser::ast::SetExpr;
+use sqlparser::ast::TableFactor;
+use sqlparser::ast::TableWithJoins;
 
 use super::Direction;
+use crate::error::Error;
+use crate::error::Result;
+use crate::sql::parser::ast::KVStatement;
+use crate::sql::plan::Node;
+use crate::sql::plan::Plan;
+use crate::sql::schema::Catalog;
+use crate::sql::schema::Table;
+use crate::sql::types::expression::Expression;
+use crate::sql::types::Value;
 
 /// query plan builder
 pub struct Planner<'a, C: Catalog> {
@@ -60,41 +72,59 @@ impl<'a, C: Catalog> Planner<'a, C> {
             }
             KVStatement::DropTable { names } => {
                 let name = &names[0];
-                Ok(Node::DropTable { table: name.to_string() })
+                Ok(Node::DropTable {
+                    table: name.to_string(),
+                })
             }
             KVStatement::Query(query) => self.query_to_plan(query.as_ref()),
-            KVStatement::Insert { table_name, columns, source } => Ok(Node::Insert {
+            KVStatement::Insert {
+                table_name,
+                columns,
+                source,
+            } => Ok(Node::Insert {
                 table: table_name.to_string(),
-                columns: columns.iter().map(|ident| ident.to_string()).collect::<Vec<String>>(),
+                columns: columns
+                    .iter()
+                    .map(|ident| ident.to_string())
+                    .collect::<Vec<String>>(),
                 expressions: self.query_to_expressions(source.as_ref())?,
             }),
-            KVStatement::Update { table_name, assignments, selection } => {
+            KVStatement::Update {
+                table_name,
+                assignments,
+                selection,
+            } => {
                 let table = self.catalog.must_read_table(&table_name.to_string())?;
                 let mut scope = Scope::from_table(table)?;
                 let set = self.assignment_to_set(assignments, &mut scope)?;
-                let filter =
-                    selection.map(|expr| self.build_expression(&expr, &mut scope)).transpose()?;
+                let filter = selection
+                    .map(|expr| self.build_expression(&expr, &mut scope))
+                    .transpose()?;
                 Ok(Node::Update {
                     table: table_name.to_string(),
                     source: Box::new(Node::Scan {
                         table: table_name.to_string(),
                         alias: None,
-                        filter: filter,
+                        filter,
                     }),
                     expressions: set,
                 })
             }
-            KVStatement::Delete { table_name, selection } => {
+            KVStatement::Delete {
+                table_name,
+                selection,
+            } => {
                 let mut scope =
                     Scope::from_table(self.catalog.must_read_table(&table_name.to_string())?)?;
-                let filter =
-                    selection.map(|expr| self.build_expression(&expr, &mut scope)).transpose()?;
+                let filter = selection
+                    .map(|expr| self.build_expression(&expr, &mut scope))
+                    .transpose()?;
                 Ok(Node::Delete {
                     table: table_name.to_string(),
                     source: Box::new(Node::Scan {
                         table: table_name.to_string(),
                         alias: None,
-                        filter: filter,
+                        filter,
                     }),
                 })
             }
@@ -141,7 +171,11 @@ impl<'a, C: Catalog> Planner<'a, C> {
     fn build_limit_node(&mut self, node: Node, limit: &Expr) -> Result<Node> {
         match limit {
             Expr::Value(sqlparser::ast::Value::Number(n, _)) => match n.parse::<usize>() {
-                Ok(n) => Ok(Node::Limit { source: Box::new(node), offset: 0, limit: Some(n) }),
+                Ok(n) => Ok(Node::Limit {
+                    source: Box::new(node),
+                    offset: 0,
+                    limit: Some(n),
+                }),
                 Err(r) => return Err(Error::Internal(format!("Unknown limit value {}", r))),
             },
             e => return Err(Error::Internal(format!("Unknown limit {}", e))),
@@ -190,7 +224,10 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 .collect::<Result<_>>();
         }
 
-        Err(Error::Value(format!("Un support insert by this query: {}", query)))
+        Err(Error::Value(format!(
+            "Un support insert by this query: {}",
+            query
+        )))
     }
 
     fn set_expr_to_plan(&mut self, ext_expr: &SetExpr, scope: &mut Scope) -> Result<Node> {
@@ -217,7 +254,10 @@ impl<'a, C: Catalog> Planner<'a, C> {
         // projection expressions
         if let Some(expressions) = self.prepare_select_projection(&select.projection, scope)? {
             scope.project(&expressions)?;
-            node = Node::Projection { source: Box::new(node), expressions }
+            node = Node::Projection {
+                source: Box::new(node),
+                expressions,
+            }
         }
 
         // Group by
@@ -285,9 +325,9 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 Ok((self.build_expression(expr, scope)?, Some(alias.to_string())))
             }
             SelectItem::Wildcard => Ok((Expression::Wildcard, None)),
-            SelectItem::QualifiedWildcard(_) => {
-                Err(Error::Value("can not support alias.* or even schema.table.*".to_string()))
-            }
+            SelectItem::QualifiedWildcard(_) => Err(Error::Value(
+                "can not support alias.* or even schema.table.*".to_string(),
+            )),
         }
     }
 
@@ -374,9 +414,10 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 _ => todo!(),
             },
             Expr::IsNull(expr) => IsNull(self.build_expression(expr, scope)?.into()),
-            Expr::Identifier(ident) => {
-                Field(scope.resolve(None, &ident.to_string())?, Some((None, ident.to_string())))
-            }
+            Expr::Identifier(ident) => Field(
+                scope.resolve(None, &ident.to_string())?,
+                Some((None, ident.to_string())),
+            ),
             Expr::CompoundIdentifier(idents) => {
                 let idents: &Vec<Ident> = idents;
                 if idents.len() == 2 {
@@ -388,9 +429,15 @@ impl<'a, C: Catalog> Planner<'a, C> {
                     )
                 } else if idents.len() == 1 {
                     let name = &idents[0];
-                    Field(scope.resolve(None, &name.to_string())?, Some((None, name.to_string())))
+                    Field(
+                        scope.resolve(None, &name.to_string())?,
+                        Some((None, name.to_string())),
+                    )
                 } else {
-                    return Err(Error::Value(format!("Unsupported SQL statement. {}", sql_expr)));
+                    return Err(Error::Value(format!(
+                        "Unsupported SQL statement. {}",
+                        sql_expr
+                    )));
                 }
             }
             Expr::Wildcard => Wildcard,
@@ -431,7 +478,11 @@ impl<'a, C: Catalog> Planner<'a, C> {
                         .unwrap_or_else(|| table_name.clone()),
                     self.catalog.must_read_table(&table_name)?,
                 )?;
-                Ok(Node::Scan { table: table_name, alias: alias_name, filter: None })
+                Ok(Node::Scan {
+                    table: table_name,
+                    alias: alias_name,
+                    filter: None,
+                })
             }
             _ => Err(Error::Value("Can't support this select".to_string())),
         }
@@ -506,7 +557,11 @@ impl Scope {
         if self.constant {
             return Err(Error::Value(format!(
                 "Expression must be constant, found field {}",
-                if let Some(table) = table { format!("{}.{}", table, name) } else { name.into() }
+                if let Some(table) = table {
+                    format!("{}.{}", table, name)
+                } else {
+                    name.into()
+                }
             )));
         }
 
@@ -519,7 +574,10 @@ impl Scope {
                 .copied()
                 .ok_or_else(|| Error::Value(format!("Unknown field {}.{}", table, name)))
         } else if self.ambiguous.contains(name) {
-            Err(Error::Value(format!("Ambiguous field {}, no table specified", name)))
+            Err(Error::Value(format!(
+                "Ambiguous field {}, no table specified",
+                name
+            )))
         } else {
             self.unqualified
                 .get(name)

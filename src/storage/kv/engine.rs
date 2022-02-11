@@ -1,13 +1,21 @@
-use crate::error::{Error, Result};
-use crate::storage::kv::encoding::{encode_bytes, take_byte, take_bytes};
-use crate::storage::range::Range;
-use crate::storage::Store;
-use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::io::Read;
 use std::iter::Peekable;
-use std::ops::{Bound, RangeBounds};
-use std::sync::{Arc, RwLock};
+use std::ops::Bound;
+use std::ops::RangeBounds;
+use std::sync::Arc;
+use std::sync::RwLock;
+
+use serde::Deserialize;
+use serde::Serialize;
+
+use crate::error::Error;
+use crate::error::Result;
+use crate::storage::kv::encoding::encode_bytes;
+use crate::storage::kv::encoding::take_byte;
+use crate::storage::kv::encoding::take_bytes;
+use crate::storage::range::Range;
+use crate::storage::Store;
 
 /// a key-value store
 pub struct KVStoreEngine {
@@ -29,13 +37,17 @@ enum Key<'a> {
 
 impl Clone for KVStoreEngine {
     fn clone(&self) -> Self {
-        Self { store: self.store.clone() }
+        Self {
+            store: self.store.clone(),
+        }
     }
 }
 
 impl KVStoreEngine {
     pub fn new(store: Box<dyn Store>) -> Self {
-        Self { store: Arc::new(RwLock::new(store)) }
+        Self {
+            store: Arc::new(RwLock::new(store)),
+        }
     }
 
     /// fetch a key
@@ -126,7 +138,9 @@ impl<'a> Key<'a> {
             b => return Err(Error::Internal(format!("Unknown key prefix byte:{:x?}", b))),
         };
         if !bytes.is_empty() {
-            return Err(Error::Internal("Unexpceted data remaining at end of key".into()));
+            return Err(Error::Internal(
+                "Unexpceted data remaining at end of key".into(),
+            ));
         }
         Ok(key)
     }
@@ -140,7 +154,9 @@ impl Scan {
             })
             .transpose()
         }));
-        Self { scan: scan.peekable() }
+        Self {
+            scan: scan.peekable(),
+        }
     }
 
     // next() with error handling.
@@ -176,6 +192,7 @@ impl Scan {
 
 impl Iterator for Scan {
     type Item = Result<(Vec<u8>, Vec<u8>)>;
+
     fn next(&mut self) -> Option<Self::Item> {
         self.try_next().transpose()
     }

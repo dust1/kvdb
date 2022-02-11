@@ -1,18 +1,19 @@
-use sqlparser::{
-    ast::{ObjectName, ObjectType, Query, Statement},
-    dialect::GenericDialect,
-    parser::Parser,
-};
+use sqlparser::ast::ObjectName;
+use sqlparser::ast::ObjectType;
+use sqlparser::ast::Query;
+use sqlparser::ast::Statement;
+use sqlparser::dialect::GenericDialect;
+use sqlparser::parser::Parser;
 
-use crate::{
-    error::{Error, Result},
-    sql::statements::{KVCreateTableStatement, KVInsertStatement, KVUpdateStatement},
-};
-
-use super::{
-    sql_statement::KVStatement,
-    statements::{KVDeleteStatement, KVDropTableStatement, KVQueryStatement},
-};
+use super::sql_statement::KVStatement;
+use super::statements::KVDeleteStatement;
+use super::statements::KVDropTableStatement;
+use super::statements::KVQueryStatement;
+use crate::error::Error;
+use crate::error::Result;
+use crate::sql::statements::KVCreateTableStatement;
+use crate::sql::statements::KVInsertStatement;
+use crate::sql::statements::KVUpdateStatement;
 
 macro_rules! parser_err {
     ($MSG:expr) => {
@@ -22,7 +23,10 @@ macro_rules! parser_err {
 
 macro_rules! internal_err {
     ($EXPECTED:expr, $FOUND:expr) => {
-        Err(Error::Internal(format!("Internal: {}, found: {}", $EXPECTED, $FOUND)))
+        Err(Error::Internal(format!(
+            "Internal: {}, found: {}",
+            $EXPECTED, $FOUND
+        )))
     };
 }
 
@@ -53,7 +57,12 @@ impl KVParser {
 
     fn parse_drop(stmt: Statement) -> Result<KVStatement> {
         match stmt {
-            Statement::Drop { object_type, if_exists, names, .. } => match object_type {
+            Statement::Drop {
+                object_type,
+                if_exists,
+                names,
+                ..
+            } => match object_type {
                 ObjectType::Table => KVParser::parse_drop_table(if_exists, names),
                 t => internal_err!("an SQL Drop Type", t),
             },
@@ -62,7 +71,10 @@ impl KVParser {
     }
 
     fn parse_drop_table(if_exists: bool, names: Vec<ObjectName>) -> Result<KVStatement> {
-        Ok(KVStatement::DropTable(KVDropTableStatement { if_exists, names }))
+        Ok(KVStatement::DropTable(KVDropTableStatement {
+            if_exists,
+            names,
+        }))
     }
 
     fn parse_create_table(stmt: Statement) -> Result<KVStatement> {
@@ -89,18 +101,28 @@ impl KVParser {
 
     fn parse_delete(stmt: Statement) -> Result<KVStatement> {
         match stmt {
-            Statement::Delete { table_name, selection } => {
-                Ok(KVStatement::Delete(KVDeleteStatement { table_name, selection }))
-            }
+            Statement::Delete {
+                table_name,
+                selection,
+            } => Ok(KVStatement::Delete(KVDeleteStatement {
+                table_name,
+                selection,
+            })),
             _ => parser_err!("Expect set create table statement"),
         }
     }
 
     fn parse_update(stmt: Statement) -> Result<KVStatement> {
         match stmt {
-            Statement::Update { table_name, assignments, selection } => {
-                Ok(KVStatement::Update(KVUpdateStatement { table_name, assignments, selection }))
-            }
+            Statement::Update {
+                table_name,
+                assignments,
+                selection,
+            } => Ok(KVStatement::Update(KVUpdateStatement {
+                table_name,
+                assignments,
+                selection,
+            })),
             _ => parser_err!("Expect set create table statement"),
         }
     }

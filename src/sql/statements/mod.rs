@@ -9,7 +9,6 @@ mod statement_update;
 
 pub use analyzer_statement::AnalyzerResult;
 pub use analyzer_statement::AnalyzerStatement;
-
 pub use statement_create_table::KVCreateTableStatement;
 pub use statement_delete::KVDeleteStatement;
 pub use statement_drop_table::KVDropTableStatement;

@@ -1,10 +1,17 @@
-use crate::error::{Error, Result};
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
+use sqlparser::ast::ColumnDef;
+use sqlparser::ast::ColumnOption;
+use sqlparser::ast::ObjectName;
+
+use crate::error::Error;
+use crate::error::Result;
 use crate::sql::engine::kv::KV;
 use crate::sql::engine::Scan;
 use crate::sql::types::expression::Expression;
-use crate::sql::types::{DataType, Row, Value};
-use serde_derive::{Deserialize, Serialize};
-use sqlparser::ast::{ColumnDef, ColumnOption, ObjectName};
+use crate::sql::types::DataType;
+use crate::sql::types::Row;
+use crate::sql::types::Value;
 
 pub type Tables = Box<dyn DoubleEndedIterator<Item = Table> + Send>;
 
@@ -91,8 +98,14 @@ pub struct Column {
 impl Table {
     pub fn new(name: ObjectName, columns: Vec<ColumnDef>) -> Result<Table> {
         let table_name = name.to_string();
-        let columns = columns.iter().map(Column::from_column_def).collect::<Vec<_>>();
-        Ok(Table { name: table_name, columns })
+        let columns = columns
+            .iter()
+            .map(Column::from_column_def)
+            .collect::<Vec<_>>();
+        Ok(Table {
+            name: table_name,
+            columns,
+        })
     }
 
     /// Validates the table schema
@@ -102,8 +115,18 @@ impl Table {
         }
         match self.columns.iter().filter(|c| c.primary_key).count() {
             1 => {}
-            0 => return Err(Error::Value(format!("no primary key in table {}", self.name))),
-            _ => return Err(Error::Value(format!("Multiple primary keys in table {}", self.name))),
+            0 => {
+                return Err(Error::Value(format!(
+                    "no primary key in table {}",
+                    self.name
+                )))
+            }
+            _ => {
+                return Err(Error::Value(format!(
+                    "Multiple primary keys in table {}",
+                    self.name
+                )))
+            }
         }
         for column in &self.columns {
             column.validate(self, kv)?;
@@ -179,10 +202,16 @@ impl Column {
     /// validates the column schema
     pub fn validate(&self, table: &Table, kv: &KV) -> Result<()> {
         if self.primary_key && self.nullable {
-            return Err(Error::Value(format!("Primary key {} can not be nullable", self.name)));
+            return Err(Error::Value(format!(
+                "Primary key {} can not be nullable",
+                self.name
+            )));
         }
         if self.primary_key && !self.unique {
-            return Err(Error::Value(format!("Primary key {} should be unique", self.name)));
+            return Err(Error::Value(format!(
+                "Primary key {} should be unique",
+                self.name
+            )));
         }
 
         // validate default value
