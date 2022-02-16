@@ -1,6 +1,7 @@
 mod optimizer;
 mod plan_node;
 pub mod planner;
+pub mod planners;
 
 use std::fmt::Display;
 use std::fmt::Formatter;

@@ -7,7 +7,7 @@ use super::AnalyzerResult;
 use super::AnalyzerStatement;
 use crate::error::Result;
 use crate::sql::data::DataColumn;
-use crate::sql::data::DataTable;
+use crate::sql::plan::planners::CreateTablePlan;
 use crate::sql::plan::PlanNode;
 
 pub struct KVCreateTableStatement {
@@ -26,12 +26,11 @@ impl AnalyzerStatement for KVCreateTableStatement {
             .iter()
             .map(DataColumn::try_form)
             .collect::<Vec<_>>();
-        let table = DataTable {
-            name: self.name.to_string(),
-            columns,
-        };
         Ok(AnalyzerResult::SimpleQuery(Box::new(
-            PlanNode::CreateTable { schema: table },
+            PlanNode::CreateTable(CreateTablePlan {
+                name: self.name.to_string(),
+                columns,
+            }),
         )))
     }
 }

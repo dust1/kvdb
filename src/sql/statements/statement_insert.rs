@@ -4,7 +4,12 @@ use sqlparser::ast::ObjectName;
 use sqlparser::ast::Query;
 use sqlparser::ast::SqliteOnConflict;
 
+use super::AnalyzerResult;
 use super::AnalyzerStatement;
+use crate::error::Result;
+use crate::sql::plan::planners::Expression;
+use crate::sql::plan::planners::InsertPlan;
+use crate::sql::plan::PlanNode;
 
 pub struct KVInsertStatement {
     /// Only for Sqlite
@@ -26,7 +31,17 @@ pub struct KVInsertStatement {
 }
 
 impl AnalyzerStatement for KVInsertStatement {
-    fn analyze(&self) -> crate::error::Result<super::analyzer_statement::AnalyzerResult> {
-        todo!()
+    fn analyze(&self) -> Result<AnalyzerResult> {
+        Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::Insert(
+            InsertPlan {
+                table_name: self.table_name.to_string(),
+                columns: self
+                    .columns
+                    .iter()
+                    .map(|ident| ident.to_string())
+                    .collect::<Vec<String>>(),
+                expressions: Expression::from_query(self.source.as_ref())?,
+            },
+        ))))
     }
 }

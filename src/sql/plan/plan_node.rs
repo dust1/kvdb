@@ -1,9 +1,13 @@
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 
-use crate::sql::data::DataTable;
+use super::planners::CreateTablePlan;
+use super::planners::DropTablePlan;
+use super::planners::InsertPlan;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlanNode {
-    CreateTable { schema: DataTable },
+    CreateTable(CreateTablePlan),
+    DropTable(DropTablePlan),
+    Insert(InsertPlan),
 }
