@@ -30,6 +30,7 @@ pub struct Planner<'a, C: Catalog> {
 }
 
 /// Manages names available to expressions and executors, and maps them onto columns/fields.
+/// Table Metadata
 #[derive(Clone, Debug)]
 pub struct Scope {
     // If true, the scope is constant and cannot contain any variables.
@@ -530,7 +531,7 @@ impl Scope {
     }
 
     /// Add a column to the scope
-    fn add_column(&mut self, table: Option<String>, label: Option<String>) {
+    pub fn add_column(&mut self, table: Option<String>, label: Option<String>) {
         if let Some(l) = label.clone() {
             if let Some(t) = table.clone() {
                 // save columns index by table name and column name
@@ -553,7 +554,7 @@ impl Scope {
     }
 
     /// resolves a name, optionally qualified by a tuple name
-    fn resolve(&self, table: Option<&str>, name: &str) -> Result<usize> {
+    pub fn resolve(&self, table: Option<&str>, name: &str) -> Result<usize> {
         if self.constant {
             return Err(Error::Value(format!(
                 "Expression must be constant, found field {}",
@@ -589,7 +590,7 @@ impl Scope {
     /// Projects the scope. This takes a set of expressions and labels in the current scope,
     /// and returns a new scope for the projection.
     /// rebuild scope by projection
-    fn project(&mut self, projection: &[(Expression, Option<String>)]) -> Result<()> {
+    pub fn project(&mut self, projection: &[(Expression, Option<String>)]) -> Result<()> {
         if self.constant {
             return Err(Error::Internal("Can't modify constant scope".into()));
         }

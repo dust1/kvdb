@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use sqlparser::ast::Expr;
@@ -15,13 +17,13 @@ pub enum DataValue {
 impl DataValue {
     pub fn from_expr(expr: &Expr) -> Self {
         match expr {
-            Expr::Value(value) => Self::from_expr_value(value),
+            Expr::Value(value) => Self::from_value(value),
             _ => Self::Null,
         }
     }
 
-    pub fn from_expr_value(expr_value: &Value) -> Self {
-        match expr_value {
+    pub fn from_value(value: &Value) -> Self {
+        match value {
             Value::Number(n, _) => DataValue::parse_number(n),
             Value::SingleQuotedString(ref s)
             | Value::NationalStringLiteral(ref s)
@@ -42,5 +44,21 @@ impl DataValue {
 
     pub fn parse_string(s: &str) -> Self {
         Self::String(s.to_owned())
+    }
+}
+
+impl Display for DataValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            match self {
+                Self::Null => "NULL".to_string(),
+                Self::Boolean(b) if *b => "TRUE".to_string(),
+                Self::Boolean(_) => "FALSE".to_string(),
+                Self::Integer(i) => i.to_string(),
+                Self::Float(f) => f.to_string(),
+                Self::String(s) => s.clone(),
+            }
+            .as_ref(),
+        )
     }
 }

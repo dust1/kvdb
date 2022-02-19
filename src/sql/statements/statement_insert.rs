@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sqlparser::ast::Expr;
 use sqlparser::ast::Ident;
 use sqlparser::ast::ObjectName;
@@ -10,6 +12,7 @@ use crate::error::Result;
 use crate::sql::plan::planners::Expression;
 use crate::sql::plan::planners::InsertPlan;
 use crate::sql::plan::PlanNode;
+use crate::sql::session::Catalog;
 
 pub struct KVInsertStatement {
     /// Only for Sqlite
@@ -31,7 +34,7 @@ pub struct KVInsertStatement {
 }
 
 impl AnalyzerStatement for KVInsertStatement {
-    fn analyze(&self) -> Result<AnalyzerResult> {
+    fn analyze(&self, _catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::Insert(
             InsertPlan {
                 table_name: self.table_name.to_string(),

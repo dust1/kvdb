@@ -1,11 +1,13 @@
+use std::sync::Arc;
+
 use sqlparser::ast::ObjectName;
 
 use super::AnalyzerResult;
 use super::AnalyzerStatement;
-use crate::error::Error;
 use crate::error::Result;
 use crate::sql::plan::planners::DropTablePlan;
 use crate::sql::plan::PlanNode;
+use crate::sql::session::Catalog;
 
 pub struct KVDropTableStatement {
     pub if_exists: bool,
@@ -13,7 +15,7 @@ pub struct KVDropTableStatement {
 }
 
 impl AnalyzerStatement for KVDropTableStatement {
-    fn analyze(&self) -> Result<AnalyzerResult> {
+    fn analyze(&self, _catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
         let name = &self.names[0];
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::DropTable(
             DropTablePlan {

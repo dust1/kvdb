@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sqlparser::ast::ColumnDef;
 use sqlparser::ast::ObjectName;
 use sqlparser::ast::Query;
@@ -9,6 +11,7 @@ use crate::error::Result;
 use crate::sql::data::DataColumn;
 use crate::sql::plan::planners::CreateTablePlan;
 use crate::sql::plan::PlanNode;
+use crate::sql::session::Catalog;
 
 pub struct KVCreateTableStatement {
     pub if_not_exists: bool,
@@ -20,7 +23,7 @@ pub struct KVCreateTableStatement {
 }
 
 impl AnalyzerStatement for KVCreateTableStatement {
-    fn analyze(&self) -> Result<AnalyzerResult> {
+    fn analyze(&self, _catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
         let columns = self
             .columns
             .iter()

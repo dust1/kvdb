@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use crate::error::Result;
 use crate::sql::plan::PlanNode;
+use crate::sql::session::Catalog;
 use crate::sql::sql_statement::KVStatement;
 
 pub enum AnalyzerResult {
@@ -7,18 +10,18 @@ pub enum AnalyzerResult {
 }
 
 pub trait AnalyzerStatement {
-    fn analyze(&self) -> Result<AnalyzerResult>;
+    fn analyze(&self, catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult>;
 }
 
 impl AnalyzerStatement for KVStatement {
-    fn analyze(&self) -> Result<AnalyzerResult> {
+    fn analyze(&self, catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
         match self {
-            KVStatement::Query(v) => v.analyze(),
-            KVStatement::Insert(v) => v.analyze(),
-            KVStatement::DropTable(v) => v.analyze(),
-            KVStatement::CreateTable(v) => v.analyze(),
-            KVStatement::Delete(v) => v.analyze(),
-            KVStatement::Update(v) => v.analyze(),
+            KVStatement::Query(v) => v.analyze(catalog),
+            KVStatement::Insert(v) => v.analyze(catalog),
+            KVStatement::DropTable(v) => v.analyze(catalog),
+            KVStatement::CreateTable(v) => v.analyze(catalog),
+            KVStatement::Delete(v) => v.analyze(catalog),
+            KVStatement::Update(v) => v.analyze(catalog),
         }
     }
 }
