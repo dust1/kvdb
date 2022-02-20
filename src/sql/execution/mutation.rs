@@ -4,9 +4,9 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::sql::execution::Executor;
 use crate::sql::execution::ResultSet;
+use crate::sql::plan::planners::Expression;
 use crate::sql::schema::Catalog;
 use crate::sql::schema::Table;
-use crate::sql::types::expression::Expression;
 use crate::sql::types::Row;
 use crate::sql::types::Value;
 

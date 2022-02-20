@@ -119,8 +119,8 @@ impl KVQueryStatement {
             .iter()
             .map(|select| Expression::from_select_item(select, scope))
             .collect::<Result<Vec<_>>>()?;
-
-        scope.project(&projections)?;
+        let p = &projections[..];
+        scope.project(p)?;
         Ok(PlanNode::Projection(ProjectionPlan {
             source: Box::new(node),
             expressions: projections,

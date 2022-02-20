@@ -14,6 +14,7 @@ use sqlparser::ast::TableFactor;
 use sqlparser::ast::TableWithJoins;
 
 use super::Direction;
+use super::planners::Expression;
 use crate::error::Error;
 use crate::error::Result;
 use crate::sql::parser::ast::KVStatement;
@@ -21,7 +22,6 @@ use crate::sql::plan::Node;
 use crate::sql::plan::Plan;
 use crate::sql::schema::Catalog;
 use crate::sql::schema::Table;
-use crate::sql::types::expression::Expression;
 use crate::sql::types::Value;
 
 /// query plan builder
@@ -334,116 +334,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
 
     /// build Expression by sqlparser::ast::Expr
     fn build_expression(&self, sql_expr: &Expr, scope: &mut Scope) -> Result<Expression> {
-        use sqlparser::*;
-        use Expression::*;
-        Ok(match sql_expr {
-            Expr::Value(literal) => Constant(Value::from_expr_value(literal)),
-            Expr::BinaryOp { left, op, right } => match op {
-                ast::BinaryOperator::Or => Or(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                ast::BinaryOperator::And => And(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                ast::BinaryOperator::Eq => Equal(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                ast::BinaryOperator::NotEq => Not(Equal(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                )
-                .into()),
-                ast::BinaryOperator::Gt => GreaterThan(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                ast::BinaryOperator::GtEq => Or(
-                    GreaterThan(
-                        self.build_expression(left, scope)?.into(),
-                        self.build_expression(right, scope)?.into(),
-                    )
-                    .into(),
-                    Equal(
-                        self.build_expression(left, scope)?.into(),
-                        self.build_expression(right, scope)?.into(),
-                    )
-                    .into(),
-                ),
-                ast::BinaryOperator::Lt => LessThan(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                ast::BinaryOperator::LtEq => Or(
-                    LessThan(
-                        self.build_expression(left, scope)?.into(),
-                        self.build_expression(right, scope)?.into(),
-                    )
-                    .into(),
-                    Equal(
-                        self.build_expression(left, scope)?.into(),
-                        self.build_expression(right, scope)?.into(),
-                    )
-                    .into(),
-                ),
-                ast::BinaryOperator::Like => Like(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                ast::BinaryOperator::Plus => Add(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                ast::BinaryOperator::Minus => Subtract(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                ast::BinaryOperator::Multiply => Multiply(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                ast::BinaryOperator::Divide => Divide(
-                    self.build_expression(left, scope)?.into(),
-                    self.build_expression(right, scope)?.into(),
-                ),
-                _ => todo!(),
-            },
-            Expr::UnaryOp { expr, op } => match op {
-                ast::UnaryOperator::Not => Not(self.build_expression(expr, scope)?.into()),
-                _ => todo!(),
-            },
-            Expr::IsNull(expr) => IsNull(self.build_expression(expr, scope)?.into()),
-            Expr::Identifier(ident) => Field(
-                scope.resolve(None, &ident.to_string())?,
-                Some((None, ident.to_string())),
-            ),
-            Expr::CompoundIdentifier(idents) => {
-                let idents: &Vec<Ident> = idents;
-                if idents.len() == 2 {
-                    let table = &idents[0];
-                    let name = &idents[1];
-                    Field(
-                        scope.resolve(Some(&table.to_string()), &name.to_string())?,
-                        Some((Some(table.to_string()), name.to_string())),
-                    )
-                } else if idents.len() == 1 {
-                    let name = &idents[0];
-                    Field(
-                        scope.resolve(None, &name.to_string())?,
-                        Some((None, name.to_string())),
-                    )
-                } else {
-                    return Err(Error::Value(format!(
-                        "Unsupported SQL statement. {}",
-                        sql_expr
-                    )));
-                }
-            }
-            Expr::Wildcard => Wildcard,
-            _ => todo!(),
-        })
+        todo!()
     }
 
     /// create logic plan node from TableWithJoins
@@ -482,7 +373,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 Ok(Node::Scan {
                     table: table_name,
                     alias: alias_name,
-                    filter: None,
+                    filter: None
                 })
             }
             _ => Err(Error::Value("Can't support this select".to_string())),

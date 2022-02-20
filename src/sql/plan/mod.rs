@@ -17,7 +17,8 @@ use crate::sql::parser::ast::KVStatement;
 use crate::sql::plan::planner::Planner;
 use crate::sql::schema::Catalog;
 use crate::sql::schema::Table;
-use crate::sql::types::expression::Expression;
+
+use self::planners::Expression;
 
 /// a query plan
 #[derive(Debug)]

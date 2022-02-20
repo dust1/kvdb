@@ -1,3 +1,6 @@
+use std::fmt::Display;
+use std::fmt::Formatter;
+
 use regex::Regex;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
@@ -46,6 +49,40 @@ pub enum Expression {
 
     // String operations
     Like(Box<Expression>, Box<Expression>),
+}
+
+impl Display for Expression {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Constant(v) => v.to_string(),
+            Self::Field(i, None) => format!("#{}", i),
+            Self::Field(_, Some((None, name))) => name.to_string(),
+            Self::Field(_, Some((Some(table), name))) => format!("{}.{}", table, name),
+
+            Self::And(lhs, rhs) => format!("{} AND {}", lhs, rhs),
+            Self::Or(lhs, rhs) => format!("{} OR {}", lhs, rhs),
+            Self::Not(expr) => format!("NOT {}", expr),
+
+            Self::Equal(lhs, rhs) => format!("{} = {}", lhs, rhs),
+            Self::GreaterThan(lhs, rhs) => format!("{} > {}", lhs, rhs),
+            Self::LessThan(lhs, rhs) => format!("{} < {}", lhs, rhs),
+            Self::IsNull(expr) => format!("{} IS NULL", expr),
+
+            Self::Add(lhs, rhs) => format!("{} + {}", lhs, rhs),
+            Self::Assert(expr) => expr.to_string(),
+            Self::Divide(lhs, rhs) => format!("{} / {}", lhs, rhs),
+            Self::Exponentiate(lhs, rhs) => format!("{} ^ {}", lhs, rhs),
+            Self::Factorial(expr) => format!("!{}", expr),
+            Self::Modulo(lhs, rhs) => format!("{} % {}", lhs, rhs),
+            Self::Multiply(lhs, rhs) => format!("{} * {}", lhs, rhs),
+            Self::Negate(expr) => format!("-{}", expr),
+            Self::Subtract(lhs, rhs) => format!("{} - {}", lhs, rhs),
+
+            Self::Like(lhs, rhs) => format!("{} LIKE {}", lhs, rhs),
+            Self::Wildcard => "*".to_string(),
+        };
+        write!(f, "{}", s)
+    }
 }
 
 impl Expression {

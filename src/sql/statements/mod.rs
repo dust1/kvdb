@@ -1,5 +1,4 @@
 mod analyzer_statement;
-mod query;
 mod statement_create_table;
 mod statement_delete;
 mod statement_drop_table;

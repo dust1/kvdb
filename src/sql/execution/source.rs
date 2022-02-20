@@ -1,7 +1,7 @@
 use crate::sql::execution::Executor;
 use crate::sql::execution::ResultSet;
+use crate::sql::plan::planners::Expression;
 use crate::sql::schema::Catalog;
-use crate::sql::types::expression::Expression;
 use crate::sql::types::Column;
 use crate::sql::types::Row;
 

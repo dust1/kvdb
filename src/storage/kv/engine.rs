@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::io::Read;
 use std::iter::Peekable;
 use std::ops::Bound;
 use std::ops::RangeBounds;

@@ -8,10 +8,11 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::sql::engine::kv::KV;
 use crate::sql::engine::Scan;
-use crate::sql::types::expression::Expression;
 use crate::sql::types::DataType;
 use crate::sql::types::Row;
 use crate::sql::types::Value;
+
+use super::plan::planners::Expression;
 
 pub type Tables = Box<dyn DoubleEndedIterator<Item = Table> + Send>;
 

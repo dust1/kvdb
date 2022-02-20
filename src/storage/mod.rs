@@ -5,6 +5,7 @@ pub mod range;
 
 mod file;
 mod pager;
+mod mvcc;
 
 #[cfg(test)]
 mod test;

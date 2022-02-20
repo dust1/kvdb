@@ -1,5 +1,3 @@
-pub mod expression;
-
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::fmt::Formatter;
