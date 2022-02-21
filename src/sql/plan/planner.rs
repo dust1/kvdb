@@ -13,8 +13,8 @@ use sqlparser::ast::SetExpr;
 use sqlparser::ast::TableFactor;
 use sqlparser::ast::TableWithJoins;
 
-use super::Direction;
 use super::planners::Expression;
+use super::Direction;
 use crate::error::Error;
 use crate::error::Result;
 use crate::sql::parser::ast::KVStatement;
@@ -373,7 +373,7 @@ impl<'a, C: Catalog> Planner<'a, C> {
                 Ok(Node::Scan {
                     table: table_name,
                     alias: alias_name,
-                    filter: None
+                    filter: None,
                 })
             }
             _ => Err(Error::Value("Can't support this select".to_string())),

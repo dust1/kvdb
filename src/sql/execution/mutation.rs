@@ -132,10 +132,11 @@ impl<C: Catalog> Executor<C> for Insert {
         let mut count = 0;
         for expressions in self.rows {
             // data source
-            let mut row = expressions
-                .into_iter()
-                .map(|expr| expr.evaluate(None))
-                .collect::<Result<_>>()?;
+            // let mut row = expressions
+            //     .into_iter()
+            //     .map(|expr| expr.evaluate(None))
+            //     .collect::<Result<_>>()?;
+            let mut row = vec![];
             if self.columns.is_empty() {
                 // e.g. INSERT INTO table VALUES (1, "name");
                 // the column not specified
@@ -178,7 +179,7 @@ impl<C: Catalog> Executor<C> for Update<C> {
                     }
                     let mut new = row.clone();
                     for (index, expression) in &self.expressions {
-                        new[*index] = expression.evaluate(Some(&row))?;
+                        // new[*index] = expression.evaluate(Some(&row))?;
                     }
 
                     catalog.update(&table.name, &id, new)?;

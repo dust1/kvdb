@@ -1,7 +1,9 @@
 use std::iter::once;
 
-use crate::sql::{session::Catalog, sql_executor::KVExecutor, data::{DataResult, DataRow}};
-
+use crate::sql::data::DataResult;
+use crate::sql::data::DataRow;
+use crate::sql::session::Catalog;
+use crate::sql::sql_executor::KVExecutor;
 
 pub struct NothingExec;
 
@@ -11,7 +13,7 @@ impl NothingExec {
     }
 }
 
-impl<C:Catalog> KVExecutor<C> for NothingExec  {
+impl<C: Catalog> KVExecutor<C> for NothingExec {
     fn execute(self: Box<Self>, ctx: &mut C) -> crate::error::Result<crate::sql::data::DataResult> {
         Ok(DataResult::Query {
             columns: vec![],

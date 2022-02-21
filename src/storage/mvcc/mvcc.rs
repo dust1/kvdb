@@ -1,12 +1,17 @@
-use std::sync::{Arc, RwLock};
+use std::borrow::Cow;
+use std::sync::Arc;
+use std::sync::RwLock;
 
-use serde::{Serialize, Deserialize};
-use serde_derive::{Serialize, Deserialize};
+use bincode::deserialize;
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
 
-use crate::{storage::{Store, range::Range}, error::Result};
-
-use super::{transaction::{Transaction, TransactionMode}, keys::Key};
-
+use super::transaction::Transaction;
+use super::transaction::TransactionMode;
+use crate::common::TransactionKey;
+use crate::error::Result;
+use crate::storage::range::Range;
+use crate::storage::Store;
 
 /// MVCC Status
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -17,21 +22,22 @@ pub struct Status {
 }
 
 pub struct MVCC {
-    store: Arc<RwLock<Box<dyn Store>>>
+    store: Arc<RwLock<Box<dyn Store>>>,
 }
 
 impl Clone for MVCC {
     fn clone(&self) -> Self {
-        Self { store: self.store.clone() }
+        Self {
+            store: self.store.clone(),
+        }
     }
 }
 
 impl MVCC {
-
     /// Create a new MVCC K/V Store with given K/V store for storage
     pub fn new(store: Box<dyn Store>) -> Self {
         Self {
-            store: Arc::new(RwLock::new(store))
+            store: Arc::new(RwLock::new(store)),
         }
     }
 
@@ -55,42 +61,36 @@ impl MVCC {
         let store = self.store.read()?;
 
         // get the latest used transaction ID
-        let txns:u64 = match store.get(&Key::TxnNext.encode())? {
+        let txns: u64 = match store.get(&TransactionKey::TxnNext.encode())? {
             Some(ref v) => deserialize(v)?,
             None => 1,
         } - 1;
 
         // get the count with active transaction
-        let txns_active:u64 = store.scan(
-            Range::from(
-                Key::TxnActive(0).encode()..Key::TxnActive(std::u64::MAX).encode(),
-            )
-        ).try_fold(0, |count, r| r.map(|_| count + 1))?;
+        let txns_active: u64 = store
+            .scan(Range::from(
+                TransactionKey::TxnActive(0).encode()
+                    ..TransactionKey::TxnActive(std::u64::MAX).encode(),
+            ))
+            .try_fold(0, |count, r| r.map(|_| count + 1))?;
 
         Ok(Status {
             txns,
             txns_active,
-            storage: store.to_string()
+            storage: store.to_string(),
         })
     }
 
     /// fetch an unversioned metadata value
     pub fn get_metadata(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let session = self.store.read()?;
-        todo!()
+        session.get(&TransactionKey::Metadata(Cow::from(key)).encode())
     }
 
     /// set an unversioned metadata value
     pub fn set_metadata(&self, key: &[u8], value: Vec<u8>) -> Result<()> {
-        todo!()
+        let session = self.store.read()?;
+        let k = TransactionKey::Metadata(Cow::from(key)).encode();
+        session.set(key, value)
     }
-
-}
-
-fn serialize<V: Serialize>(value: &V) -> Result<Vec<u8>> {
-    Ok(bincode::serialize(value)?)
-}
-
-fn deserialize<'a, V: Deserialize<'a>>(bytes: &'a [u8]) -> Result<V> {
-    Ok(bincode::deserialize(bytes)?)
 }

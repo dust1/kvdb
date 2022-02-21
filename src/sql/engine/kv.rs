@@ -99,29 +99,30 @@ impl Catalog for KV {
     fn scan(&self, table: &str, filter: Option<Expression>) -> Result<Scan> {
         // 1. read table
         let table = self.must_read_table(table)?;
-        Ok(Box::new(
-            self.kv
-                // scan by table name and no primary key
-                .scan_prefix(&Key::Row((&table.name).into(), None).encode())?
-                // deserialize value
-                .map(|r| r.and_then(|(_, v)| deserialize(&v)))
-                .filter_map(move |r| match r {
-                    Ok(row) => match &filter {
-                        // filter value
-                        Some(filter) => match filter.evaluate(Some(&row)) {
-                            Ok(Value::Boolean(b)) if b => Some(Ok(row)),
-                            Ok(Value::Boolean(_)) | Ok(Value::Null) => None,
-                            Ok(v) => Some(Err(Error::Value(format!(
-                                "Filter returnd {}, excepted boolean",
-                                v
-                            )))),
-                            Err(err) => Some(Err(err)),
-                        },
-                        None => Some(Ok(row)),
-                    },
-                    err => Some(err),
-                }),
-        ))
+        // Ok(Box::new(
+        //     self.kv
+        //         // scan by table name and no primary key
+        //         .scan_prefix(&Key::Row((&table.name).into(), None).encode())?
+        //         // deserialize value
+        //         .map(|r| r.and_then(|(_, v)| deserialize(&v)))
+        //         .filter_map(move |r| match r {
+        //             Ok(row) => match &filter {
+        //                 // filter value
+        //                 Some(filter) => match filter.evaluate(Some(&row)) {
+        //                     Ok(Value::Boolean(b)) if b => Some(Ok(row)),
+        //                     Ok(Value::Boolean(_)) | Ok(Value::Null) => None,
+        //                     Ok(v) => Some(Err(Error::Value(format!(
+        //                         "Filter returnd {}, excepted boolean",
+        //                         v
+        //                     )))),
+        //                     Err(err) => Some(Err(err)),
+        //                 },
+        //                 None => Some(Ok(row)),
+        //             },
+        //             err => Some(err),
+        //         }),
+        // ))
+        todo!()
     }
 
     fn create(&mut self, table: &str, row: Row) -> Result<()> {

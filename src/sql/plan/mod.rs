@@ -10,6 +10,7 @@ pub use plan_node::PlanNode;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 
+use self::planners::Expression;
 use crate::error::Result;
 use crate::sql::execution::Executor;
 use crate::sql::execution::ResultSet;
@@ -17,8 +18,6 @@ use crate::sql::parser::ast::KVStatement;
 use crate::sql::plan::planner::Planner;
 use crate::sql::schema::Catalog;
 use crate::sql::schema::Table;
-
-use self::planners::Expression;
 
 /// a query plan
 #[derive(Debug)]

@@ -1,8 +1,6 @@
-
+use super::DataColumns;
+use super::DataRows;
 use crate::sql::plan::PlanNode;
-
-use super::{DataColumns, DataRows};
-
 
 pub enum DataResult {
     // rows created
