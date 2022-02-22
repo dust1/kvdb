@@ -10,11 +10,11 @@ pub enum AnalyzerResult {
 }
 
 pub trait AnalyzerStatement {
-    fn analyze(&self, catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult>;
+    fn analyze<C: Catalog>(&self, catalog: &mut C) -> Result<AnalyzerResult>;
 }
 
 impl AnalyzerStatement for KVStatement {
-    fn analyze(&self, catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
+    fn analyze<C: Catalog>(&self, catalog: &mut C) -> Result<AnalyzerResult> {
         match self {
             KVStatement::Query(v) => v.analyze(catalog),
             KVStatement::Insert(v) => v.analyze(catalog),

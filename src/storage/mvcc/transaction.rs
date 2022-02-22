@@ -9,10 +9,10 @@ use bincode::serialize;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 
-use crate::common::TransactionKey;
+use crate::common::keys::TransactionKey;
+use crate::common::range::Range;
 use crate::error::Error;
 use crate::error::Result;
-use crate::storage::range::Range;
 use crate::storage::Store;
 
 /// An MVCC Transaction Mode
@@ -40,7 +40,7 @@ struct Snapshot {
 }
 
 /// An MVCC Transaction
-pub struct Transaction {
+pub struct MVCCTransaction {
     /// The underlying store for the transaction. Shared between transactions using a mutex.
     store: Arc<RwLock<Box<dyn Store>>>,
     /// tansaction id
@@ -96,7 +96,7 @@ impl Snapshot {
     }
 }
 
-impl Transaction {
+impl MVCCTransaction {
     /// begin a new transaction in the given mode
     pub fn begin(store: Arc<RwLock<Box<dyn Store>>>, mode: TransactionMode) -> Result<Self> {
         let session = store.write()?;

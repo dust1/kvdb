@@ -34,7 +34,7 @@ pub struct KVInsertStatement {
 }
 
 impl AnalyzerStatement for KVInsertStatement {
-    fn analyze(&self, _catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
+    fn analyze<C: Catalog>(&self, catalog: &mut C) -> Result<AnalyzerResult> {
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::Insert(
             InsertPlan {
                 table_name: self.table_name.to_string(),

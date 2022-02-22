@@ -53,14 +53,13 @@ impl KVQueryStatement {
 }
 
 impl AnalyzerStatement for KVQueryStatement {
-    fn analyze(&self, catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
+    fn analyze<C: Catalog>(&self, catalog: &mut C) -> Result<AnalyzerResult> {
         if self.from.is_empty() {
             return Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::Nothing)));
         }
         let mut scope = Scope::new();
-        let ctx = catalog.clone();
 
-        let mut node = self.plan_node_from(&mut scope, ctx)?;
+        let mut node = self.plan_node_from(&mut scope, catalog)?;
         node = self.plan_node_selection(node, &mut scope)?;
         node = self.plan_node_projection(node, &mut scope)?;
         node = self.plan_node_group_by(node, &mut scope)?;
@@ -71,7 +70,7 @@ impl AnalyzerStatement for KVQueryStatement {
 
 impl KVQueryStatement {
     // FROM
-    fn plan_node_from(&self, scope: &mut Scope, ctx: Arc<dyn Catalog>) -> Result<PlanNode> {
+    fn plan_node_from<C: Catalog>(&self, scope: &mut Scope, ctx: &mut C) -> Result<PlanNode> {
         if self.from.len() != 1 {
             return Err(Error::Internal("unsupport two or than SELECT".into()));
         }

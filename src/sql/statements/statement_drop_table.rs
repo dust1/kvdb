@@ -15,7 +15,7 @@ pub struct KVDropTableStatement {
 }
 
 impl AnalyzerStatement for KVDropTableStatement {
-    fn analyze(&self, _catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
+    fn analyze<C: Catalog>(&self, catalog: &mut C) -> Result<AnalyzerResult> {
         let name = &self.names[0];
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::DropTable(
             DropTablePlan {

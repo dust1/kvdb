@@ -1,4 +1,2 @@
-mod keys;
-
-pub use keys::DataKey;
-pub use keys::TransactionKey;
+pub mod keys;
+pub mod range;

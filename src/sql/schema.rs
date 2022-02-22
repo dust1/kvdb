@@ -7,8 +7,6 @@ use sqlparser::ast::ObjectName;
 use super::plan::planners::Expression;
 use crate::error::Error;
 use crate::error::Result;
-use crate::sql::engine::kv::KV;
-use crate::sql::engine::Scan;
 use crate::sql::types::DataType;
 use crate::sql::types::Row;
 use crate::sql::types::Value;

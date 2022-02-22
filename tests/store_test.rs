@@ -1,7 +1,7 @@
-use crate::error::Result;
-use crate::storage::memory::Memory;
-use crate::storage::range::Range;
-use crate::storage::Store;
+use kvdb::common::range::Range;
+use kvdb::error::Result;
+use kvdb::storage::b_tree::Memory;
+use kvdb::storage::Store;
 
 struct Test {
     key: &'static [u8],

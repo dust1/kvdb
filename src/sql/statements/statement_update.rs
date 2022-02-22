@@ -21,10 +21,9 @@ pub struct KVUpdateStatement {
 }
 
 impl AnalyzerStatement for KVUpdateStatement {
-    fn analyze(&self, catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
-        let ctx = catalog.clone();
+    fn analyze<C: Catalog>(&self, catalog: &mut C) -> Result<AnalyzerResult> {
         let table_name = self.table_name.to_string();
-        let table = ctx.must_read_table(&table_name)?;
+        let table = catalog.must_read_table(&table_name)?;
         let mut scope = Scope::from_table(table)?;
         let set = self.assignment_to_set(self.assignments, &mut scope)?;
         let filter = self

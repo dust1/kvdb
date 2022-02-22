@@ -6,11 +6,11 @@ use bincode::deserialize;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 
-use super::transaction::Transaction;
+use super::transaction::MVCCTransaction;
 use super::transaction::TransactionMode;
-use crate::common::TransactionKey;
+use crate::common::keys::TransactionKey;
+use crate::common::range::Range;
 use crate::error::Result;
-use crate::storage::range::Range;
 use crate::storage::Store;
 
 /// MVCC Status
@@ -42,18 +42,18 @@ impl MVCC {
     }
 
     /// begin a new transaction in read-write mode
-    pub fn begin(&self) -> Result<Transaction> {
-        Transaction::begin(self.store.clone(), TransactionMode::ReadWrite)
+    pub fn begin(&self) -> Result<MVCCTransaction> {
+        MVCCTransaction::begin(self.store.clone(), TransactionMode::ReadWrite)
     }
 
     /// begin a new transaction in the given mode
-    pub fn begin_with_mode(&self, mode: TransactionMode) -> Result<Transaction> {
-        Transaction::begin(self.store.clone(), mode)
+    pub fn begin_with_mode(&self, mode: TransactionMode) -> Result<MVCCTransaction> {
+        MVCCTransaction::begin(self.store.clone(), mode)
     }
 
     /// resume a transaction with the given ID
-    pub fn resume(&self, id: u64) -> Result<Transaction> {
-        Transaction::resume(self.store.clone(), id)
+    pub fn resume(&self, id: u64) -> Result<MVCCTransaction> {
+        MVCCTransaction::resume(self.store.clone(), id)
     }
 
     /// return engine status

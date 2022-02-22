@@ -2,10 +2,11 @@ use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use crate::storage::Range;
-use crate::storage::Scan;
+use crate::common::range::Range;
+use crate::common::range::Scan;
 use crate::storage::Store;
 
+/// an in-memory Store implementation using std's B+tree implementation
 pub struct Memory {
     root: BTreeMap<Vec<u8>, Vec<u8>>,
 }

@@ -23,7 +23,7 @@ pub struct KVCreateTableStatement {
 }
 
 impl AnalyzerStatement for KVCreateTableStatement {
-    fn analyze(&self, _catalog: Arc<dyn Catalog>) -> Result<AnalyzerResult> {
+    fn analyze<C: Catalog>(&self, _catalog: &mut C) -> Result<AnalyzerResult> {
         let columns = self
             .columns
             .iter()

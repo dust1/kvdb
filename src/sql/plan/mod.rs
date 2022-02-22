@@ -1,4 +1,3 @@
-mod optimizer;
 mod plan_node;
 pub mod planner;
 pub mod planners;
