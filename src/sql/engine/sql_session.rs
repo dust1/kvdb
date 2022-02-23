@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::sql_engine::SQLEngine;
 use super::SQLTransaction;
 use crate::common::result::ResultSet;

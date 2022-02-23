@@ -1,7 +1,6 @@
 use super::sql_session::SQLSession;
 use super::sql_transaction::SQLTransaction;
 use crate::error::Result;
-use crate::storage::mvcc::MVCCTransaction;
 use crate::storage::mvcc::TransactionMode;
 
 /// A SQL-Engine

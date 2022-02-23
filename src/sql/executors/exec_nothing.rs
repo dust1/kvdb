@@ -14,7 +14,7 @@ impl NothingExec {
 }
 
 impl<T: SQLTransaction> KVExecutor<T> for NothingExec {
-    fn execute(self: Box<Self>, ctx: &mut T) -> crate::error::Result<ResultSet> {
+    fn execute(self: Box<Self>, _ctx: &mut T) -> crate::error::Result<ResultSet> {
         Ok(ResultSet::Query {
             columns: vec![],
             rows: Box::new(once(Ok(DataRow::new()))),

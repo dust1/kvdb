@@ -20,12 +20,12 @@ impl SQLEngine for KVEngine {
 
     fn begin(
         &self,
-        mode: crate::storage::mvcc::TransactionMode,
+        _mode: crate::storage::mvcc::TransactionMode,
     ) -> crate::error::Result<Self::Transaction> {
         todo!()
     }
 
-    fn resume(&self, id: u64) -> crate::error::Result<Option<Self::Transaction>> {
+    fn resume(&self, _id: u64) -> crate::error::Result<Option<Self::Transaction>> {
         todo!()
     }
 }

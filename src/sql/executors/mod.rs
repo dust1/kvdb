@@ -1,3 +1,21 @@
+mod exec_create_table;
+mod exec_delete;
+mod exec_drop_table;
+mod exec_filter;
+mod exec_group_by;
+mod exec_insert;
 mod exec_nothing;
+mod exec_projection;
+mod exec_scan;
+mod exec_update;
 
+pub use exec_create_table::CreateTableExec;
+pub use exec_delete::DeleteExec;
+pub use exec_drop_table::DropTableExec;
+pub use exec_filter::FilterExec;
+pub use exec_group_by::GroupByExec;
+pub use exec_insert::InsertExec;
 pub use exec_nothing::NothingExec;
+pub use exec_projection::ProjectionExec;
+pub use exec_scan::ScanExec;
+pub use exec_update::UpdateExec;

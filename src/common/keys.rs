@@ -34,13 +34,13 @@ impl<'a> TransactionKey<'a> {
         todo!()
     }
 
-    pub fn decode(mut bytes: &[u8]) -> Result<Self> {
+    pub fn decode(_bytes: &[u8]) -> Result<Self> {
         todo!()
     }
 }
 
 impl<'a> Display for TransactionKey<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }

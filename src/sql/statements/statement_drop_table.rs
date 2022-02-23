@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use sqlparser::ast::ObjectName;
 
 use super::AnalyzerResult;
@@ -15,7 +13,7 @@ pub struct KVDropTableStatement {
 }
 
 impl AnalyzerStatement for KVDropTableStatement {
-    fn analyze<C: Catalog>(&self, catalog: &mut C) -> Result<AnalyzerResult> {
+    fn analyze<C: Catalog>(&self, _catalog: &mut C) -> Result<AnalyzerResult> {
         let name = &self.names[0];
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::DropTable(
             DropTablePlan {

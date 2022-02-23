@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use sqlparser::ast::Expr;
 use sqlparser::ast::Offset;
 use sqlparser::ast::OrderByExpr;

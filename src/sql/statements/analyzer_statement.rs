@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::error::Result;
 use crate::sql::engine::Catalog;
 use crate::sql::plan::plan_node::PlanNode;

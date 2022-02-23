@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use sqlparser::ast::Expr;
 use sqlparser::ast::Ident;
 use sqlparser::ast::ObjectName;
@@ -34,7 +32,7 @@ pub struct KVInsertStatement {
 }
 
 impl AnalyzerStatement for KVInsertStatement {
-    fn analyze<C: Catalog>(&self, catalog: &mut C) -> Result<AnalyzerResult> {
+    fn analyze<C: Catalog>(&self, _catalog: &mut C) -> Result<AnalyzerResult> {
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::Insert(
             InsertPlan {
                 table_name: self.table_name.to_string(),

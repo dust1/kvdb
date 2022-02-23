@@ -25,33 +25,33 @@ impl SQLTransaction for KVTransaction {
 
     fn create(
         &mut self,
-        table: &str,
-        row: crate::common::result::DataRow,
+        _table: &str,
+        _row: crate::common::result::DataRow,
     ) -> crate::error::Result<()> {
         todo!()
     }
 
     fn delete(
         &mut self,
-        table: &str,
-        id: &crate::sql::schema::data_value::DataValue,
+        _table: &str,
+        _id: &crate::sql::schema::data_value::DataValue,
     ) -> crate::error::Result<()> {
         todo!()
     }
 
     fn read(
         &self,
-        table: &str,
-        id: &crate::sql::schema::data_value::DataValue,
+        _table: &str,
+        _id: &crate::sql::schema::data_value::DataValue,
     ) -> crate::error::Result<Option<crate::common::result::DataRow>> {
         todo!()
     }
 
     fn read_index(
         &self,
-        table: &str,
-        column: &str,
-        value: &crate::sql::schema::data_value::DataValue,
+        _table: &str,
+        _column: &str,
+        _value: &crate::sql::schema::data_value::DataValue,
     ) -> crate::error::Result<std::collections::HashSet<crate::sql::schema::data_value::DataValue>>
     {
         todo!()
@@ -59,25 +59,25 @@ impl SQLTransaction for KVTransaction {
 
     fn scan(
         &self,
-        table: &str,
-        filter: Option<crate::sql::plan::plan_expression::Expression>,
+        _table: &str,
+        _filter: Option<crate::sql::plan::plan_expression::Expression>,
     ) -> crate::error::Result<crate::sql::engine::sql_transaction::Scan> {
         todo!()
     }
 
     fn scan_index(
         &self,
-        table: &str,
-        column: &str,
+        _table: &str,
+        _column: &str,
     ) -> crate::error::Result<crate::sql::engine::sql_transaction::IndexScan> {
         todo!()
     }
 
     fn update(
         &mut self,
-        table: &str,
-        id: &crate::sql::schema::data_value::DataValue,
-        row: crate::common::result::DataRow,
+        _table: &str,
+        _id: &crate::sql::schema::data_value::DataValue,
+        _row: crate::common::result::DataRow,
     ) -> crate::error::Result<()> {
         todo!()
     }
@@ -86,7 +86,7 @@ impl SQLTransaction for KVTransaction {
 impl Catalog for KVTransaction {
     fn read_table(
         &self,
-        table: &str,
+        _table: &str,
     ) -> crate::error::Result<Option<crate::sql::schema::table::Table>> {
         todo!()
     }
