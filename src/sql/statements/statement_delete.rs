@@ -5,13 +5,13 @@ use sqlparser::ast::ObjectName;
 
 use super::AnalyzerResult;
 use super::AnalyzerStatement;
+use crate::common::scope::Scope;
 use crate::error::Result;
-use crate::sql::plan::planner::Scope;
+use crate::sql::engine::Catalog;
+use crate::sql::plan::plan_expression::Expression;
+use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::DeletePlan;
-use crate::sql::plan::planners::Expression;
 use crate::sql::plan::planners::ScanPlan;
-use crate::sql::plan::PlanNode;
-use crate::sql::session::Catalog;
 
 pub struct KVDeleteStatement {
     pub table_name: ObjectName,
@@ -25,8 +25,10 @@ impl AnalyzerStatement for KVDeleteStatement {
         let mut scope = Scope::from_table(table)?;
         let filter = self
             .selection
+            .as_ref()
             .map(|expr| Expression::from_expr(&expr, &mut scope))
             .transpose()?;
+
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::Delete(
             DeletePlan {
                 table_name: table_name.clone(),

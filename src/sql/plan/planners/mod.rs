@@ -1,5 +1,4 @@
 mod plan_delete;
-mod plan_expression;
 mod plan_filter;
 mod plan_group_by;
 mod plan_insert;
@@ -10,7 +9,6 @@ mod plan_table_drop;
 mod plan_update;
 
 pub use plan_delete::DeletePlan;
-pub use plan_expression::Expression;
 pub use plan_filter::FilterPlan;
 pub use plan_group_by::GroupByPlan;
 pub use plan_insert::InsertPlan;

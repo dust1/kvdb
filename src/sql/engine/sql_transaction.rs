@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
+use super::Catalog;
+use crate::common::result::DataRow;
 use crate::error::Result;
-use crate::sql::data::DataRow;
-use crate::sql::data::DataValue;
-use crate::sql::plan::planners::Expression;
-use crate::sql::session::Catalog;
+use crate::sql::plan::plan_expression::Expression;
+use crate::sql::schema::data_value::DataValue;
 use crate::storage::mvcc::TransactionMode;
 
 /// a row scan iterator

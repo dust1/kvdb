@@ -11,16 +11,16 @@ use sqlparser::ast::TableWithJoins;
 
 use super::AnalyzerResult;
 use super::AnalyzerStatement;
+use crate::common::scope::Scope;
 use crate::error::Error;
 use crate::error::Result;
-use crate::sql::plan::planner::Scope;
-use crate::sql::plan::planners::Expression;
+use crate::sql::engine::Catalog;
+use crate::sql::plan::plan_expression::Expression;
+use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::FilterPlan;
 use crate::sql::plan::planners::GroupByPlan;
 use crate::sql::plan::planners::ProjectionPlan;
 use crate::sql::plan::planners::ScanPlan;
-use crate::sql::plan::PlanNode;
-use crate::sql::session::Catalog;
 
 pub struct KVQueryStatement {
     pub from: Vec<TableWithJoins>,

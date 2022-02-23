@@ -9,10 +9,10 @@ use sqlparser::ast::SqliteOnConflict;
 use super::AnalyzerResult;
 use super::AnalyzerStatement;
 use crate::error::Result;
-use crate::sql::plan::planners::Expression;
+use crate::sql::engine::Catalog;
+use crate::sql::plan::plan_expression::Expression;
+use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::InsertPlan;
-use crate::sql::plan::PlanNode;
-use crate::sql::session::Catalog;
 
 pub struct KVInsertStatement {
     /// Only for Sqlite

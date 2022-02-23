@@ -1,18 +1,16 @@
-use std::sync::Arc;
-
 use sqlparser::ast::Assignment;
 use sqlparser::ast::Expr;
 use sqlparser::ast::ObjectName;
 
 use super::AnalyzerResult;
 use super::AnalyzerStatement;
+use crate::common::scope::Scope;
 use crate::error::Result;
-use crate::sql::plan::planner::Scope;
-use crate::sql::plan::planners::Expression;
+use crate::sql::engine::Catalog;
+use crate::sql::plan::plan_expression::Expression;
+use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::ScanPlan;
 use crate::sql::plan::planners::UpdatePlan;
-use crate::sql::plan::PlanNode;
-use crate::sql::session::Catalog;
 
 pub struct KVUpdateStatement {
     pub table_name: ObjectName,
@@ -25,11 +23,13 @@ impl AnalyzerStatement for KVUpdateStatement {
         let table_name = self.table_name.to_string();
         let table = catalog.must_read_table(&table_name)?;
         let mut scope = Scope::from_table(table)?;
-        let set = self.assignment_to_set(self.assignments, &mut scope)?;
+        let set = self.assignment_to_set(&self.assignments, &mut scope)?;
         let filter = self
             .selection
+            .as_ref()
             .map(|expr| Expression::from_expr(&expr, &mut scope))
             .transpose()?;
+
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::Update(
             UpdatePlan {
                 table_name: table_name.clone(),
@@ -48,7 +48,7 @@ impl KVUpdateStatement {
     /// assignment to set
     fn assignment_to_set(
         &self,
-        assignments: Vec<Assignment>,
+        assignments: &[Assignment],
         scope: &mut Scope,
     ) -> Result<Vec<(usize, Option<String>, Expression)>> {
         Ok(assignments

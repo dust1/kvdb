@@ -1,16 +1,16 @@
-use super::data::DataResult;
+use super::engine::SQLTransaction;
 use super::executors::NothingExec;
-use super::plan::PlanNode;
-use super::session::Catalog;
+use super::plan::plan_node::PlanNode;
+use crate::common::result::ResultSet;
 use crate::error::Result;
 
 // plan executor
-pub trait KVExecutor<C: Catalog> {
-    fn execute(self: Box<Self>, ctx: &mut C) -> Result<DataResult>;
+pub trait KVExecutor<T: SQLTransaction> {
+    fn execute(self: Box<Self>, txn: &mut T) -> Result<ResultSet>;
 }
 
-impl<C: Catalog + 'static> dyn KVExecutor<C> {
-    pub fn build(node: PlanNode) -> Box<dyn KVExecutor<C>> {
+impl<T: SQLTransaction + 'static> dyn KVExecutor<T> {
+    pub fn build(node: PlanNode) -> Box<dyn KVExecutor<T>> {
         match node {
             PlanNode::Nothing => NothingExec::new(),
             _ => todo!(),

@@ -89,8 +89,7 @@ impl MVCC {
 
     /// set an unversioned metadata value
     pub fn set_metadata(&self, key: &[u8], value: Vec<u8>) -> Result<()> {
-        let session = self.store.read()?;
-        let k = TransactionKey::Metadata(Cow::from(key)).encode();
-        session.set(key, value)
+        let mut session = self.store.write()?;
+        session.set(&TransactionKey::Metadata(Cow::from(key)).encode(), value)
     }
 }

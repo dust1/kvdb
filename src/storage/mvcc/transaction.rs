@@ -99,7 +99,7 @@ impl Snapshot {
 impl MVCCTransaction {
     /// begin a new transaction in the given mode
     pub fn begin(store: Arc<RwLock<Box<dyn Store>>>, mode: TransactionMode) -> Result<Self> {
-        let session = store.write()?;
+        let mut session = store.write()?;
         let id: u64 = match session.get(&TransactionKey::TxnNext.encode())? {
             Some(ref v) => deserialize(v)?,
             None => 1,

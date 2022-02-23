@@ -1,8 +1,8 @@
 use std::iter::once;
 
-use crate::sql::data::DataResult;
-use crate::sql::data::DataRow;
-use crate::sql::session::Catalog;
+use crate::common::result::DataRow;
+use crate::common::result::ResultSet;
+use crate::sql::engine::SQLTransaction;
 use crate::sql::sql_executor::KVExecutor;
 
 pub struct NothingExec;
@@ -13,9 +13,9 @@ impl NothingExec {
     }
 }
 
-impl<C: Catalog> KVExecutor<C> for NothingExec {
-    fn execute(self: Box<Self>, ctx: &mut C) -> crate::error::Result<crate::sql::data::DataResult> {
-        Ok(DataResult::Query {
+impl<T: SQLTransaction> KVExecutor<T> for NothingExec {
+    fn execute(self: Box<Self>, ctx: &mut T) -> crate::error::Result<ResultSet> {
+        Ok(ResultSet::Query {
             columns: vec![],
             rows: Box::new(once(Ok(DataRow::new()))),
         })

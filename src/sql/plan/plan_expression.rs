@@ -12,11 +12,11 @@ use sqlparser::ast::SelectItem;
 use sqlparser::ast::SetExpr;
 use sqlparser::ast::UnaryOperator;
 
+use crate::common::result::DataRow;
+use crate::common::scope::Scope;
 use crate::error::Error;
 use crate::error::Result;
-use crate::sql::data::DataRow;
-use crate::sql::data::DataValue;
-use crate::sql::plan::planner::Scope;
+use crate::sql::schema::data_value::DataValue;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expression {

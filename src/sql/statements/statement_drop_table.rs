@@ -5,9 +5,9 @@ use sqlparser::ast::ObjectName;
 use super::AnalyzerResult;
 use super::AnalyzerStatement;
 use crate::error::Result;
+use crate::sql::engine::Catalog;
+use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::DropTablePlan;
-use crate::sql::plan::PlanNode;
-use crate::sql::session::Catalog;
 
 pub struct KVDropTableStatement {
     pub if_exists: bool,

@@ -1,7 +1,7 @@
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 
-use super::Expression;
+use crate::sql::plan::plan_expression::Expression;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ScanPlan {

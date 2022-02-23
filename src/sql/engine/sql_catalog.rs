@@ -1,6 +1,6 @@
-use super::schema::Table;
 use crate::error::Error;
 use crate::error::Result;
+use crate::sql::schema::table::Table;
 
 pub trait Catalog {
     /// Read a table, if it exists

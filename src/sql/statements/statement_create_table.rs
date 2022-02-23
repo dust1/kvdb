@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use sqlparser::ast::ColumnDef;
 use sqlparser::ast::ObjectName;
 use sqlparser::ast::Query;
@@ -8,10 +6,10 @@ use sqlparser::ast::SqlOption;
 use super::AnalyzerResult;
 use super::AnalyzerStatement;
 use crate::error::Result;
-use crate::sql::data::DataColumn;
+use crate::sql::engine::Catalog;
+use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::CreateTablePlan;
-use crate::sql::plan::PlanNode;
-use crate::sql::session::Catalog;
+use crate::sql::schema::table_column::TableColumn;
 
 pub struct KVCreateTableStatement {
     pub if_not_exists: bool,
@@ -27,7 +25,7 @@ impl AnalyzerStatement for KVCreateTableStatement {
         let columns = self
             .columns
             .iter()
-            .map(DataColumn::try_form)
+            .map(TableColumn::try_form)
             .collect::<Vec<_>>();
         Ok(AnalyzerResult::SimpleQuery(Box::new(
             PlanNode::CreateTable(CreateTablePlan {

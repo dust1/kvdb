@@ -1,13 +1,14 @@
-use super::data::DataResult;
+use super::engine::Catalog;
 use super::engine::SQLTransaction;
-use super::plan::PlanNode;
-use super::session::Catalog;
+use super::plan::plan_node::PlanNode;
 use super::sql_parser::KVParser;
 use super::sql_statement::KVStatement;
 use super::statements::AnalyzerResult;
 use super::statements::AnalyzerStatement;
+use crate::common::result::ResultSet;
 use crate::error::Error;
 use crate::error::Result;
+use crate::sql::sql_executor::KVExecutor;
 
 pub struct PlanParser {
     plan: PlanNode,
@@ -35,7 +36,9 @@ impl PlanParser {
         Ok(self)
     }
 
-    pub fn execute<T: SQLTransaction>(self, txn: &mut T) -> Result<DataResult> {
-        todo!()
+    /// executes the plan, consuming it
+    pub fn execute<T: SQLTransaction + 'static>(self, txn: &mut T) -> Result<ResultSet> {
+        let result = <dyn KVExecutor<T>>::build(self.plan).execute(txn)?;
+        Ok(result)
     }
 }

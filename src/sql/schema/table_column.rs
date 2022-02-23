@@ -7,7 +7,7 @@ use super::data_type::DataType;
 use super::data_value::DataValue;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct DataColumn {
+pub struct TableColumn {
     /// Column name
     pub name: String,
     /// Column datatype
@@ -26,7 +26,7 @@ pub struct DataColumn {
     pub index: bool,
 }
 
-impl DataColumn {
+impl TableColumn {
     pub fn try_form(column_def: &ColumnDef) -> Self {
         let mut column = Self {
             name: column_def.name.to_string(),
