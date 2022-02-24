@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::error::Result;
 use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::schema::data_value::DataValue;
@@ -9,6 +11,7 @@ pub type DataRow = Vec<DataValue>;
 pub type DataRows = Box<dyn Iterator<Item = Result<DataRow>> + Send>;
 
 /// A column(in a result set)
+#[derive(Debug)]
 pub struct DataColumn {
     pub name: Option<String>,
 }
@@ -42,4 +45,10 @@ pub enum ResultSet {
     },
     // Explain result
     Explain(PlanNode),
+}
+
+impl Display for ResultSet {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
 }

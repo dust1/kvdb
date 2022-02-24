@@ -90,4 +90,12 @@ impl Catalog for KVTransaction {
     ) -> crate::error::Result<Option<crate::sql::schema::table::Table>> {
         todo!()
     }
+
+    fn create_table(&self, _table: crate::sql::schema::table::Table) -> crate::error::Result<()> {
+        todo!()
+    }
+
+    fn delete_table(&self, _table: &str) -> crate::error::Result<()> {
+        todo!()
+    }
 }

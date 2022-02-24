@@ -3,6 +3,7 @@ use serde_derive::Serialize;
 use sqlparser::ast::ColumnDef;
 use sqlparser::ast::ObjectName;
 
+use super::data_value::DataValue;
 use super::table_column::TableColumn;
 use crate::error::Result;
 
@@ -26,5 +27,15 @@ impl Table {
             name: table_name,
             columns,
         })
+    }
+
+    /// return the table column with the column name
+    pub fn get_column(&self, _name: &str) -> Result<&TableColumn> {
+        todo!()
+    }
+
+    /// return the primary key value of a row
+    pub fn get_row_key(&self, _row: &[DataValue]) -> Result<DataValue> {
+        todo!()
     }
 }

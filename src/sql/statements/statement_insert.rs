@@ -41,7 +41,7 @@ impl AnalyzerStatement for KVInsertStatement {
                     .iter()
                     .map(|ident| ident.to_string())
                     .collect::<Vec<String>>(),
-                expressions: Expression::from_query(self.source.as_ref())?,
+                rows: Expression::from_query(self.source.as_ref())?,
             },
         ))))
     }

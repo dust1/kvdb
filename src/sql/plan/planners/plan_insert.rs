@@ -7,5 +7,5 @@ use crate::sql::plan::plan_expression::Expression;
 pub struct InsertPlan {
     pub table_name: String,
     pub columns: Vec<String>,
-    pub expressions: Vec<Vec<Expression>>,
+    pub rows: Vec<Vec<Expression>>,
 }
