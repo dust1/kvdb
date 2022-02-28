@@ -1,9 +1,13 @@
 use std::fmt::Display;
+use std::hash::Hash;
+use std::hash::Hasher;
 
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use sqlparser::ast::Expr;
 use sqlparser::ast::Value;
+
+use super::data_type::DataType;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DataValue {
@@ -12,6 +16,21 @@ pub enum DataValue {
     Integer(i64),
     Float(f64),
     String(String),
+}
+
+impl Eq for DataValue {}
+
+impl Hash for DataValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.data_type().hash(state);
+        match self {
+            DataValue::Null => self.hash(state),
+            DataValue::Boolean(v) => v.hash(state),
+            DataValue::Integer(v) => v.hash(state),
+            DataValue::Float(v) => v.to_be_bytes().hash(state),
+            DataValue::String(v) => v.hash(state),
+        }
+    }
 }
 
 impl DataValue {
@@ -44,6 +63,15 @@ impl DataValue {
 
     pub fn parse_string(s: &str) -> Self {
         Self::String(s.to_owned())
+    }
+
+    pub fn data_type(&self) -> DataType {
+        match self {
+            DataValue::Boolean(_) => DataType::Boolean,
+            DataValue::Integer(_) => DataType::Integer,
+            DataValue::Float(_) => DataType::Float,
+            _ => DataType::String,
+        }
     }
 }
 

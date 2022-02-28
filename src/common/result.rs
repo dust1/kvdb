@@ -11,7 +11,7 @@ pub type DataRow = Vec<DataValue>;
 pub type DataRows = Box<dyn Iterator<Item = Result<DataRow>> + Send>;
 
 /// A column(in a result set)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DataColumn {
     pub name: Option<String>,
 }
