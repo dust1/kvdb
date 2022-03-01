@@ -1,22 +1,32 @@
+use crate::error::Error;
+use crate::error::Result;
 use crate::sql::engine::sql_transaction::SQLTransaction;
 use crate::sql::engine::Catalog;
+use crate::sql::schema::table::Table;
 use crate::storage::mvcc::MVCCTransaction;
+use crate::storage::mvcc::TransactionMode;
 
 pub struct KVTransaction {
     txn: MVCCTransaction,
 }
 
+impl KVTransaction {
+    pub fn new(txn: MVCCTransaction) -> Self {
+        Self { txn }
+    }
+}
+
 impl SQLTransaction for KVTransaction {
     fn id(&self) -> u64 {
-        todo!()
+        self.txn.id()
     }
 
     fn mode(&self) -> crate::storage::mvcc::TransactionMode {
-        todo!()
+        self.txn.mode()
     }
 
     fn commit(self) -> crate::error::Result<()> {
-        todo!()
+        self.txn.commit()
     }
 
     fn rollback(self) -> crate::error::Result<()> {
@@ -91,11 +101,19 @@ impl Catalog for KVTransaction {
         todo!()
     }
 
-    fn create_table(&self, _table: crate::sql::schema::table::Table) -> crate::error::Result<()> {
+    fn create_table(&mut self, table: Table) -> crate::error::Result<()> {
+        if self.read_table(&table.name)?.is_some() {
+            return Err(Error::Value(format!(
+                "Create table name {} already exists.",
+                table.name
+            )));
+        }
+        table.validate(self)?;
+
         todo!()
     }
 
-    fn delete_table(&self, _table: &str) -> crate::error::Result<()> {
+    fn delete_table(&mut self, _table: &str) -> crate::error::Result<()> {
         todo!()
     }
 }

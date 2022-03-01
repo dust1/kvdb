@@ -12,7 +12,7 @@ pub trait SQLEngine: Clone {
     fn begin(&self, mode: TransactionMode) -> Result<Self::Transaction>;
 
     /// resume a sql transaction with given txn id
-    fn resume(&self, id: u64) -> Result<Option<Self::Transaction>>;
+    fn resume(&self, id: u64) -> Result<Self::Transaction>;
 
     /// begine a sql session for executing individual statements
     fn session(&self) -> Result<SQLSession<Self>> {

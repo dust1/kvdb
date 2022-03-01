@@ -16,7 +16,7 @@ use crate::error::Result;
 use crate::storage::Store;
 
 /// An MVCC Transaction Mode
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TransactionMode {
     /// A read-write transaction
     ReadWrite,
@@ -94,6 +94,11 @@ impl Snapshot {
             }
         }
     }
+
+    /// check whether the given version is visible in this snapshot
+    fn is_visable(&self, version: u64) -> bool {
+        version < self.version && !self.invisible.contains(&version)
+    }
 }
 
 impl MVCCTransaction {
@@ -145,5 +150,72 @@ impl MVCCTransaction {
             mode,
             snapshot,
         })
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn mode(&self) -> TransactionMode {
+        self.mode
+    }
+
+    pub fn commit(&self) -> Result<()> {
+        let mut session = self.store.write()?;
+        // remove Txnactive flag with transaction id
+        session.delete(&TransactionKey::TxnActive(self.id).encode())?;
+        session.flush()
+    }
+
+    pub fn set(&mut self, key: &[u8], value: Vec<u8>) -> Result<()> {
+        self.write(key, Some(value))
+    }
+
+    pub fn write(&self, key: &[u8], value: Option<Vec<u8>>) -> Result<()> {
+        if !self.mode.mutable() {
+            return Err(Error::ReadOnly);
+        }
+        let mut session = self.store.write()?;
+
+        // find the min tranaction ID with TxnActive
+        let min = self
+            .snapshot
+            .invisible
+            .iter()
+            .min()
+            .cloned()
+            .unwrap_or(self.id + 1);
+        let mut scan = session
+            .scan(Range::from(
+                TransactionKey::Record(key.into(), min).encode()
+                    ..=TransactionKey::Record(key.into(), std::u64::MAX).encode(),
+            ))
+            .rev();
+        while let Some((k, _)) = scan.next().transpose()? {
+            match TransactionKey::decode(&k)? {
+                TransactionKey::Record(_, version) => {
+                    if !self.snapshot.is_visable(version) {
+                        return Err(Error::Serialization);
+                    }
+                }
+                k => return Err(Error::Internal(format!("Expected Txn::Record, got {}", k))),
+            }
+        }
+        std::mem::drop(scan);
+
+        // write the key and update record
+        let key = TransactionKey::Record(key.into(), self.id).encode();
+        let update = TransactionKey::TxnUpdate(self.id, (&key).into()).encode();
+        session.set(&update, vec![])?;
+        session.set(&key, serialize(&value)?)
+    }
+}
+
+impl TransactionMode {
+    pub fn mutable(&self) -> bool {
+        match self {
+            TransactionMode::ReadWrite => true,
+            _ => false,
+        }
     }
 }

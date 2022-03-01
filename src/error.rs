@@ -15,6 +15,7 @@ pub enum Error {
     Internal(String),
     Parse(String),
     Serialization,
+    ReadOnly,
 }
 
 impl Display for Error {
@@ -24,6 +25,7 @@ impl Display for Error {
                 write!(f, "{}", s)
             }
             Error::Serialization => write!(f, "Serialization failure, retry transaction"),
+            Error::ReadOnly => write!(f, "Write data fail, this Transaction mode was ReadOnly"),
         }
     }
 }

@@ -4,10 +4,10 @@ use crate::sql::schema::table::Table;
 
 pub trait Catalog {
     /// create table
-    fn create_table(&self, table: Table) -> Result<()>;
+    fn create_table(&mut self, table: Table) -> Result<()>;
 
     /// delete table
-    fn delete_table(&self, table: &str) -> Result<()>;
+    fn delete_table(&mut self, table: &str) -> Result<()>;
 
     /// Read a table, if it exists
     fn read_table(&self, table: &str) -> Result<Option<Table>>;

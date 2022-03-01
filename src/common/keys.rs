@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::fmt::Display;
 
 use crate::error::Result;
+use crate::sql::schema::data_value::DataValue;
 
 /// MVCC keys
 #[derive(Debug)]
@@ -24,9 +25,13 @@ pub enum TransactionKey<'a> {
 
 /// Data key
 #[derive(Debug)]
-pub enum DataKey<'a> {
-    ONE(Cow<'a, [u8]>),
-    Decode,
+pub enum SQLKey<'a> {
+    /// A table schema key for the given table name
+    Table(Option<Cow<'a, str>>),
+    /// A key for an index entry
+    Index(Cow<'a, str>, Cow<'a, str>, Option<Cow<'a, DataValue>>),
+    /// A key for a row identified by table name and row primary key
+    Row(Cow<'a, str>, Option<Cow<'a, DataValue>>),
 }
 
 impl<'a> TransactionKey<'a> {
@@ -45,4 +50,18 @@ impl<'a> Display for TransactionKey<'a> {
     }
 }
 
-impl<'a> DataKey<'a> {}
+impl<'a> SQLKey<'a> {
+    pub fn encode(self) -> Vec<u8> {
+        todo!()
+    }
+
+    pub fn decode(_bytes: &[u8]) -> Result<Self> {
+        todo!()
+    }
+}
+
+impl<'a> Display for SQLKey<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}

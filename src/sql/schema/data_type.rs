@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use sqlparser::ast::DataType as SQLDataType;
@@ -21,5 +23,16 @@ impl DataType {
             SQLDataType::Float(_) => DataType::Float,
             _ => DataType::String,
         }
+    }
+}
+
+impl Display for DataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            DataType::Boolean => "Boolean",
+            DataType::Float => "Float",
+            DataType::Integer => "Integer",
+            DataType::String => "String",
+        })
     }
 }

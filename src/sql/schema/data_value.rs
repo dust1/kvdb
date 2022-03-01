@@ -65,12 +65,13 @@ impl DataValue {
         Self::String(s.to_owned())
     }
 
-    pub fn data_type(&self) -> DataType {
+    pub fn data_type(&self) -> Option<DataType> {
         match self {
-            DataValue::Boolean(_) => DataType::Boolean,
-            DataValue::Integer(_) => DataType::Integer,
-            DataValue::Float(_) => DataType::Float,
-            _ => DataType::String,
+            DataValue::Boolean(_) => Some(DataType::Boolean),
+            DataValue::Integer(_) => Some(DataType::Integer),
+            DataValue::Float(_) => Some(DataType::Float),
+            DataValue::String(_) => Some(DataType::String),
+            DataValue::Null => None,
         }
     }
 }
