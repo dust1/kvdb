@@ -1,10 +1,16 @@
+use bincode::deserialize;
+use bincode::serialize;
+
+
+use crate::common::keys::SQLKey;
 use crate::error::Error;
 use crate::error::Result;
 use crate::sql::engine::sql_transaction::SQLTransaction;
 use crate::sql::engine::Catalog;
 use crate::sql::schema::table::Table;
+use crate::sql::schema::table::Tables;
 use crate::storage::mvcc::MVCCTransaction;
-use crate::storage::mvcc::TransactionMode;
+
 
 pub struct KVTransaction {
     txn: MVCCTransaction,
@@ -96,9 +102,13 @@ impl SQLTransaction for KVTransaction {
 impl Catalog for KVTransaction {
     fn read_table(
         &self,
-        _table: &str,
+        table: &str,
     ) -> crate::error::Result<Option<crate::sql::schema::table::Table>> {
-        todo!()
+        let key = SQLKey::Table(Some(table.into()));
+        if let Some(v) = self.txn.get(&key.encode())? {
+            return Ok(Some(deserialize(&v)?));
+        }
+        Ok(None)
     }
 
     fn create_table(&mut self, table: Table) -> crate::error::Result<()> {
@@ -109,11 +119,39 @@ impl Catalog for KVTransaction {
             )));
         }
         table.validate(self)?;
-
-        todo!()
+        self.txn.set(
+            &SQLKey::Table(Some((&table.name).into())).encode(),
+            serialize(&table)?,
+        )
     }
 
-    fn delete_table(&mut self, _table: &str) -> crate::error::Result<()> {
-        todo!()
+    fn delete_table(&mut self, table: &str) -> crate::error::Result<()> {
+        let table = self.must_read_table(table)?;
+        if let Some((t, cs)) = self.table_references(&table.name, false)?.first() {
+            return Err(Error::Value(format!(
+                "Table {} is referenced by table {} column {}",
+                table.name, t, cs[0]
+            )));
+        }
+        let mut scan = self.scan(&table.name, None)?;
+        while let Some(row) = scan.next().transpose()? {
+            self.delete(&table.name, &table.get_row_key(&row)?)?;
+        }
+        self.txn
+            .delete(&SQLKey::Table(Some((&table.name).into())).encode())
+    }
+
+    fn scan_table(&self) -> Result<Tables> {
+        Ok(Box::new(
+            self.txn
+                .scan_prefix(&SQLKey::Table(None).encode())?
+                .map(|r| {
+                    r.and_then(|(_, v)| {
+                        deserialize(&v).or(Err(Error::Internal("Excepted scan".into())))
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?
+                .into_iter(),
+        ))
     }
 }

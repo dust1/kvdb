@@ -19,8 +19,6 @@ pub enum TransactionKey<'a> {
     Record(Cow<'a, [u8]>, u64),
     /// arbitray unversioned metadata
     Metadata(Cow<'a, [u8]>),
-    /// use decode
-    Decoder,
 }
 
 /// Data key
@@ -61,7 +59,7 @@ impl<'a> SQLKey<'a> {
 }
 
 impl<'a> Display for SQLKey<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }

@@ -1,4 +1,6 @@
 use std::collections::HashSet;
+use std::ops::Bound;
+use std::ops::RangeBounds;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
@@ -9,8 +11,12 @@ use bincode::serialize;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 
+
 use crate::common::keys::TransactionKey;
 use crate::common::range::Range;
+
+use crate::common::scan::KVScan;
+use crate::common::scan::KeyRangeScan;
 use crate::error::Error;
 use crate::error::Result;
 use crate::storage::Store;
@@ -31,7 +37,8 @@ pub enum TransactionMode {
 }
 
 /// A versioned snapshot, containing visiblity information about concurrent transaction
-struct Snapshot {
+#[derive(Debug, Clone)]
+pub struct Snapshot {
     /// the version(i.e. Transaction ID) that the snapshot belongs to
     version: u64,
     /// the set of transaction IDs that were active at the start of the transactions,
@@ -167,8 +174,78 @@ impl MVCCTransaction {
         session.flush()
     }
 
+    /// sacn a key range
+    pub fn scan(&self, range: impl RangeBounds<Vec<u8>>) -> Result<KVScan> {
+        let start = match range.start_bound() {
+            Bound::Excluded(k) => {
+                Bound::Excluded(TransactionKey::Record(k.into(), std::u64::MAX).encode())
+            }
+            Bound::Included(k) => Bound::Included(TransactionKey::Record(k.into(), 0).encode()),
+            Bound::Unbounded => Bound::Included(TransactionKey::Record(vec![].into(), 0).encode()),
+        };
+        let end = match range.end_bound() {
+            Bound::Excluded(k) => Bound::Excluded(TransactionKey::Record(k.into(), 0).encode()),
+            Bound::Included(k) => {
+                Bound::Included(TransactionKey::Record(k.into(), std::u64::MAX).encode())
+            }
+            Bound::Unbounded => Bound::Unbounded,
+        };
+        let scan = self.store.read()?.scan(Range::from((start, end)));
+        Ok(Box::new(KeyRangeScan::new(scan, self.snapshot.clone())))
+    }
+
+    /// scan key under a given prefix
+    pub fn scan_prefix(&self, prefix: &[u8]) -> Result<KVScan> {
+        if prefix.is_empty() {
+            return Err(Error::Internal("Scan prefix cannot be empty".into()));
+        }
+        let start = prefix.to_vec();
+        let mut end = start.clone();
+        for i in (0..end.len()).rev() {
+            match end[i] {
+                0xff if i == 0 => return Err(Error::Internal("Invalid prefix scan range".into())),
+                0xff => {
+                    end[i] = 0x00;
+                    continue;
+                }
+                v => {
+                    end[i] = v + 1;
+                    continue;
+                }
+            }
+        }
+        self.scan(start..end)
+    }
+
+    pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        let session = self.store.read()?;
+        let mut scan = session
+            .scan(Range::from(
+                TransactionKey::Record(key.into(), 0).encode()
+                    ..=TransactionKey::Record(key.into(), self.id).encode(),
+            ))
+            .rev();
+        while let Some((k, v)) = scan.next().transpose()? {
+            match TransactionKey::decode(&k)? {
+                TransactionKey::Record(_, id) => {
+                    if self.snapshot.is_visable(id) {
+                        return Ok(Some(v));
+                    }
+                }
+                k => return Err(Error::Internal(format!("Excepted Txn::Record {}", k))),
+            }
+        }
+
+        Ok(None)
+    }
+
     pub fn set(&mut self, key: &[u8], value: Vec<u8>) -> Result<()> {
         self.write(key, Some(value))
+    }
+
+    /// delete. set the value to None
+    pub fn delete(&mut self, key: &[u8]) -> Result<()> {
+        self.write(key, None)
     }
 
     pub fn write(&self, key: &[u8], value: Option<Vec<u8>>) -> Result<()> {
@@ -185,6 +262,7 @@ impl MVCCTransaction {
             .min()
             .cloned()
             .unwrap_or(self.id + 1);
+        // scan other transaction records with the same key
         let mut scan = session
             .scan(Range::from(
                 TransactionKey::Record(key.into(), min).encode()
@@ -194,6 +272,8 @@ impl MVCCTransaction {
         while let Some((k, _)) = scan.next().transpose()? {
             match TransactionKey::decode(&k)? {
                 TransactionKey::Record(_, version) => {
+                    // if this transaction can visable it
+                    // transaction conflict
                     if !self.snapshot.is_visable(version) {
                         return Err(Error::Serialization);
                     }
