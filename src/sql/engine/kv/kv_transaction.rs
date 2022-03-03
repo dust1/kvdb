@@ -1,16 +1,19 @@
+use std::borrow::Cow;
+use std::collections::HashSet;
+
 use bincode::deserialize;
 use bincode::serialize;
 
-
 use crate::common::keys::SQLKey;
+use crate::common::result::DataRow;
 use crate::error::Error;
 use crate::error::Result;
 use crate::sql::engine::sql_transaction::SQLTransaction;
 use crate::sql::engine::Catalog;
+use crate::sql::schema::data_value::DataValue;
 use crate::sql::schema::table::Table;
 use crate::sql::schema::table::Tables;
 use crate::storage::mvcc::MVCCTransaction;
-
 
 pub struct KVTransaction {
     txn: MVCCTransaction,
@@ -19,6 +22,27 @@ pub struct KVTransaction {
 impl KVTransaction {
     pub fn new(txn: MVCCTransaction) -> Self {
         Self { txn }
+    }
+
+    // Loads an index entry
+    pub fn index_load(
+        &self,
+        _table: &str,
+        _column: &str,
+        _value: &DataValue,
+    ) -> Result<HashSet<DataValue>> {
+        todo!()
+    }
+
+    // saves an index entry
+    pub fn index_save(
+        &mut self,
+        _table: &str,
+        _column: &str,
+        _value: &DataValue,
+        _index: HashSet<DataValue>,
+    ) -> Result<()> {
+        todo!()
     }
 }
 
@@ -36,15 +60,29 @@ impl SQLTransaction for KVTransaction {
     }
 
     fn rollback(self) -> crate::error::Result<()> {
-        todo!()
+        self.txn.rollback()
     }
 
-    fn create(
-        &mut self,
-        _table: &str,
-        _row: crate::common::result::DataRow,
-    ) -> crate::error::Result<()> {
-        todo!()
+    fn create(&mut self, table: &str, row: DataRow) -> Result<()> {
+        let table = self.must_read_table(table)?;
+        table.validate_row(&row, self)?;
+        let primary_key = table.get_row_key(&row)?;
+        if self.read(&table.name, &primary_key)?.is_some() {
+            return Err(Error::Value(format!(
+                "Primary key {} already exist in table {}",
+                primary_key, table.name
+            )));
+        }
+        let key = SQLKey::Row((&table.name).into(), Some(Cow::Borrowed(&primary_key)));
+        self.txn.set(&key.encode(), serialize(&row)?)?;
+
+        for (i, column) in table.columns.iter().enumerate().filter(|(_, c)| c.index) {
+            let mut index = self.index_load(&table.name, &column.name, &row[i])?;
+            index.insert(primary_key.clone());
+            self.index_save(&table.name, &column.name, &row[i], index)?;
+        }
+
+        Ok(())
     }
 
     fn delete(

@@ -11,10 +11,8 @@ use bincode::serialize;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 
-
 use crate::common::keys::TransactionKey;
 use crate::common::range::Range;
-
 use crate::common::scan::KVScan;
 use crate::common::scan::KeyRangeScan;
 use crate::error::Error;
@@ -172,6 +170,31 @@ impl MVCCTransaction {
         // remove Txnactive flag with transaction id
         session.delete(&TransactionKey::TxnActive(self.id).encode())?;
         session.flush()
+    }
+
+    pub fn rollback(&self) -> Result<()> {
+        let mut session = self.store.write()?;
+        if self.mode.mutable() {
+            let mut rollback = Vec::new();
+            let mut scan = session.scan(Range::from(
+                TransactionKey::TxnUpdate(self.id, vec![].into()).encode()
+                    ..TransactionKey::TxnUpdate(self.id + 1, vec![].into()).encode(),
+            ));
+            while let Some((key, _)) = scan.next().transpose()? {
+                match TransactionKey::decode(&key)? {
+                    TransactionKey::TxnUpdate(_, updated_key) => {
+                        rollback.push(updated_key.into_owned())
+                    }
+                    k => return Err(Error::Internal(format!("Excepted TxnUpdate, got {}", k))),
+                }
+                rollback.push(key);
+            }
+            std::mem::drop(scan);
+            for key in rollback.into_iter() {
+                session.delete(&key)?;
+            }
+        }
+        session.delete(&TransactionKey::TxnActive(self.id).encode())
     }
 
     /// sacn a key range

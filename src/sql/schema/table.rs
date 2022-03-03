@@ -1,5 +1,3 @@
-
-
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use sqlparser::ast::ColumnDef;
@@ -7,7 +5,6 @@ use sqlparser::ast::ObjectName;
 
 use super::data_value::DataValue;
 use super::table_column::TableColumn;
-
 use crate::error::Error;
 use crate::error::Result;
 use crate::sql::engine::SQLTransaction;
@@ -34,6 +31,11 @@ impl Table {
         })
     }
 
+    /// get index base on the column name
+    pub fn get_column_index(&self, _column_name: &str) -> Result<usize> {
+        todo!()
+    }
+
     /// return the table column with the column name
     pub fn get_column(&self, _name: &str) -> Result<&TableColumn> {
         todo!()
@@ -50,6 +52,22 @@ impl Table {
             .iter()
             .find(|c| c.primary_key)
             .ok_or_else(|| Error::Value(format!("Primary key not found in Table {}", self.name)))
+    }
+
+    /// validate the table row schema
+    pub fn validate_row(&self, row: &[DataValue], txn: &mut dyn SQLTransaction) -> Result<()> {
+        if row.len() != self.columns.len() {
+            return Err(Error::Value(format!(
+                "Invalid row size for table {}",
+                self.name
+            )));
+        }
+        let primary_key = self.get_row_key(row)?;
+        for (column, value) in self.columns.iter().zip(row.iter()) {
+            column.validate_value(self, &primary_key, value, txn)?;
+        }
+
+        Ok(())
     }
 
     /// validate the table schema

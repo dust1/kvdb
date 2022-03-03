@@ -1,5 +1,3 @@
-
-
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use sqlparser::ast::ColumnDef;
@@ -63,6 +61,66 @@ impl TableColumn {
             }
         }
         column
+    }
+
+    /// validate column value
+    pub fn validate_value(
+        &self,
+        table: &Table,
+        pk: &DataValue,
+        value: &DataValue,
+        txn: &mut dyn SQLTransaction,
+    ) -> Result<()> {
+        // validate type
+        match value.data_type() {
+            None if self.nullable => Ok(()),
+            None => Err(Error::Value(format!(
+                "NULL value not allowed for column {}",
+                self.name
+            ))),
+            Some(ref datatype) if datatype != &self.datatype => Err(Error::Value(format!(
+                "Invalid datatype {} for {} column",
+                datatype, self.name
+            ))),
+            _ => Ok(()),
+        }?;
+
+        // validate value
+        match value {
+            DataValue::String(s) if s.len() > 1024 => {
+                Err(Error::Value("String cannot be more than 1024 bytes".into()))
+            }
+            _ => Ok(()),
+        }?;
+
+        if let Some(target) = &self.references {
+            match value {
+                DataValue::Null => Ok(()),
+                DataValue::Float(f) if f.is_nan() => Ok(()),
+                v if target == &table.name && v == pk => Ok(()),
+                v if txn.read(target, v)?.is_none() => Err(Error::Value(format!(
+                    "Reference primary key {} in table {} does not exist",
+                    v, target
+                ))),
+                _ => Ok(()),
+            }?;
+        }
+
+        // validate uniquenes constrains
+        if self.unique && !self.primary_key && value != &DataValue::Null {
+            let index = table.get_column_index(&self.name)?;
+            let mut scan = txn.scan(&table.name, None)?;
+            while let Some(row) = scan.next().transpose()? {
+                if value == &row[index] && pk != &table.get_row_key(&row)? {
+                    return Err(Error::Value(format!(
+                        "Unique column {}, the value {} has exist",
+                        self.name, value
+                    )));
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// validate column schema
