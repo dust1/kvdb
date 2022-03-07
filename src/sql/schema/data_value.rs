@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::hash::Hasher;
@@ -30,6 +31,18 @@ impl Hash for DataValue {
             DataValue::Float(v) => v.to_be_bytes().hash(state),
             DataValue::String(v) => v.hash(state),
         }
+    }
+}
+
+impl<'a> From<DataValue> for Cow<'a, DataValue> {
+    fn from(d: DataValue) -> Self {
+        Cow::Owned(d)
+    }
+}
+
+impl<'a> From<&'a DataValue> for Cow<'a, DataValue> {
+    fn from(d: &'a DataValue) -> Self {
+        Cow::Borrowed(d)
     }
 }
 

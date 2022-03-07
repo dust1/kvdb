@@ -8,8 +8,11 @@ use crate::common::keys::SQLKey;
 use crate::common::result::DataRow;
 use crate::error::Error;
 use crate::error::Result;
+use crate::sql::engine::sql_transaction::IndexScan;
 use crate::sql::engine::sql_transaction::SQLTransaction;
+use crate::sql::engine::sql_transaction::Scan;
 use crate::sql::engine::Catalog;
+use crate::sql::plan::plan_expression::Expression;
 use crate::sql::schema::data_value::DataValue;
 use crate::sql::schema::table::Table;
 use crate::sql::schema::table::Tables;
@@ -85,46 +88,122 @@ impl SQLTransaction for KVTransaction {
         Ok(())
     }
 
-    fn delete(
-        &mut self,
-        _table: &str,
-        _id: &crate::sql::schema::data_value::DataValue,
-    ) -> crate::error::Result<()> {
-        todo!()
+    fn delete(&mut self, table: &str, id: &DataValue) -> crate::error::Result<()> {
+        let table = self.must_read_table(table)?;
+
+        // check reference
+        for (t, cs) in self.table_references(&table.name, true)? {
+            let t = self.must_read_table(&t)?;
+            let cs = cs
+                .into_iter()
+                .map(|c| Ok((t.get_column_index(&c)?, c)))
+                .collect::<Result<Vec<_>>>()?;
+            let mut scan = self.scan(&t.name, None)?;
+            while let Some(row) = scan.next().transpose()? {
+                for (i, c) in &cs {
+                    if &row[*i] == id && (table.name != t.name || id != &table.get_row_key(&row)?) {
+                        return Err(Error::Value(format!(
+                            "Primary key {} is referenced by table {} column {}",
+                            id, t.name, c
+                        )));
+                    }
+                }
+            }
+        }
+
+        let indexes: Vec<_> = table
+            .columns
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.index)
+            .collect();
+        if !indexes.is_empty() {
+            // read row by table id
+            if let Some(row) = self.read(&table.name, id)? {
+                for (i, column) in indexes {
+                    let mut index = self.index_load(&table.name, &column.name, &row[i])?;
+                    index.remove(id);
+                    self.index_save(&table.name, &column.name, &row[i], index)?;
+                }
+            }
+        }
+        self.txn
+            .delete(&SQLKey::Row(table.name.into(), Some(id.into())).encode())
     }
 
-    fn read(
-        &self,
-        _table: &str,
-        _id: &crate::sql::schema::data_value::DataValue,
-    ) -> crate::error::Result<Option<crate::common::result::DataRow>> {
-        todo!()
+    fn read(&self, table: &str, id: &DataValue) -> Result<Option<DataRow>> {
+        let result = self
+            .txn
+            .get(&SQLKey::Row(table.into(), Some(id.into())).encode())?
+            .map(|v| deserialize::<DataRow>(&v))
+            .transpose()?;
+        Ok(result)
     }
 
     fn read_index(
         &self,
-        _table: &str,
-        _column: &str,
-        _value: &crate::sql::schema::data_value::DataValue,
-    ) -> crate::error::Result<std::collections::HashSet<crate::sql::schema::data_value::DataValue>>
-    {
-        todo!()
+        table: &str,
+        column: &str,
+        value: &DataValue,
+    ) -> Result<HashSet<DataValue>> {
+        // check the column is index
+        if !self.must_read_table(table)?.get_column(column)?.index {
+            return Err(Error::Value(format!(
+                "Table {} column {} no index",
+                table, column
+            )));
+        }
+        self.index_load(table, column, value)
     }
 
-    fn scan(
-        &self,
-        _table: &str,
-        _filter: Option<crate::sql::plan::plan_expression::Expression>,
-    ) -> crate::error::Result<crate::sql::engine::sql_transaction::Scan> {
-        todo!()
+    fn scan(&self, table: &str, filter: Option<Expression>) -> Result<Scan> {
+        let table = self.must_read_table(table)?;
+        let scan = self
+            .txn
+            .scan_prefix(&SQLKey::Row((&table.name).into(), None).encode())?
+            .map(|r| r.and_then(|(_, v)| deserialize(&v)?))
+            .filter_map(move |r| match r {
+                Ok(row) => match &filter {
+                    Some(filter) => match filter.evaluate(Some(&row)) {
+                        Ok(DataValue::Boolean(b)) if b => Some(Ok(row)),
+                        Ok(DataValue::Boolean(_)) | Ok(DataValue::Null) => None,
+                        Ok(v) => Some(Err(Error::Value(format!(
+                            "Filter returned {}, excepted boolean",
+                            v
+                        )))),
+                        Err(e) => Some(Err(e)),
+                    },
+                    None => Some(Ok(row)),
+                },
+                Err(err) => Some(Err(Error::Internal(format!("scan error {}", err)))),
+            });
+        Ok(Box::new(scan))
     }
 
-    fn scan_index(
-        &self,
-        _table: &str,
-        _column: &str,
-    ) -> crate::error::Result<crate::sql::engine::sql_transaction::IndexScan> {
-        todo!()
+    fn scan_index(&self, table: &str, column: &str) -> Result<IndexScan> {
+        let table = self.must_read_table(table)?;
+        let column = table.get_column(column)?;
+        if !column.index {
+            return Err(Error::Value(format!(
+                "Table {} column {} no index",
+                table.name, column.name
+            )));
+        }
+        let scan = self
+            .txn
+            .scan_prefix(
+                &SQLKey::Index((&table.name).into(), (&column.name).into(), None).encode(),
+            )?
+            .map(|r| -> Result<(DataValue, HashSet<DataValue>)> {
+                let (k, v) = r?;
+                let value = match SQLKey::decode(&k)? {
+                    SQLKey::Index(_, _, Some(pk)) => pk.into_owned(),
+                    _ => return Err(Error::Internal("Invalid index key".into())),
+                };
+                Ok((value, deserialize(&v)?))
+            });
+
+        Ok(Box::new(scan))
     }
 
     fn update(
