@@ -30,22 +30,35 @@ impl KVTransaction {
     // Loads an index entry
     pub fn index_load(
         &self,
-        _table: &str,
-        _column: &str,
-        _value: &DataValue,
+        table: &str,
+        column: &str,
+        value: &DataValue,
     ) -> Result<HashSet<DataValue>> {
-        todo!()
+        let key = SQLKey::Index(table.into(), column.into(), Some(value.into())).encode();
+        let result = self
+            .txn
+            .get(&key)?
+            .map(|v| deserialize(&v))
+            .transpose()?
+            .unwrap_or_else(HashSet::new);
+        Ok(result)
     }
 
     // saves an index entry
     pub fn index_save(
         &mut self,
-        _table: &str,
-        _column: &str,
-        _value: &DataValue,
-        _index: HashSet<DataValue>,
+        table: &str,
+        column: &str,
+        value: &DataValue,
+        index: HashSet<DataValue>,
     ) -> Result<()> {
-        todo!()
+        let key = SQLKey::Index(table.into(), column.into(), Some(value.into())).encode();
+        if index.is_empty() {
+            self.txn.delete(&key)
+        } else {
+            let value = serialize(&index)?;
+            self.txn.set(&key, value)
+        }
     }
 }
 
@@ -206,13 +219,48 @@ impl SQLTransaction for KVTransaction {
         Ok(Box::new(scan))
     }
 
-    fn update(
-        &mut self,
-        _table: &str,
-        _id: &crate::sql::schema::data_value::DataValue,
-        _row: crate::common::result::DataRow,
-    ) -> crate::error::Result<()> {
-        todo!()
+    fn update(&mut self, table: &str, id: &DataValue, row: DataRow) -> Result<()> {
+        let table = self.must_read_table(table)?;
+        // if primary key changed, we do delete and create, otherwise we replaced
+        if &table.get_row_key(&row)? != id {
+            self.delete(&table.name, id)?;
+            self.create(&table.name, row)?;
+            return Ok(());
+        }
+
+        let indexes = table
+            .columns
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.index)
+            .collect::<Vec<_>>();
+        if !indexes.is_empty() {
+            let old = self.read(&table.name, id)?.ok_or(Error::Value(format!(
+                "Table {} id {} not exists.",
+                table.name, id
+            )))?;
+
+            for (i, column) in indexes {
+                if &old[i] == &row[i] {
+                    // the value has not changed, the index is not updated
+                    continue;
+                }
+
+                // table_name-column_name-column_value -> row_id
+                let mut index = self.index_load(&table.name, &column.name, &old[i])?;
+                index.remove(id);
+                self.index_save(&table.name, &column.name, &old[i], index)?;
+
+                let mut index = self.index_load(&table.name, &column.name, &row[i])?;
+                index.insert(id.clone());
+                self.index_save(&table.name, &column.name, &row[i], index)?;
+            }
+        }
+
+        table.validate_row(&row, self)?;
+        let key = SQLKey::Row((&table.name).into(), Some(id.into())).encode();
+        let value = serialize(&row)?;
+        self.txn.set(&key, value)
     }
 }
 

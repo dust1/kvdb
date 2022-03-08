@@ -1,3 +1,4 @@
+pub mod encoding;
 pub mod keys;
 pub mod range;
 pub mod result;
