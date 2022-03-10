@@ -178,7 +178,7 @@ pub fn encode_data_value(value: &DataValue) -> Vec<u8> {
     }
 }
 
-pub fn decode_data_value(bytes: &mut &[u8]) -> Result<DataValue> {
+pub fn take_data_value(bytes: &mut &[u8]) -> Result<DataValue> {
     match take_byte(bytes)? {
         0x00 => Ok(DataValue::Null),
         0x01 => Ok(DataValue::Boolean(take_boolean(bytes)?)),
