@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 
@@ -16,5 +18,15 @@ impl CreateTablePlan {
             name: self.name,
             columns: self.columns,
         }
+    }
+}
+
+impl Display for CreateTablePlan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "table_name: {}", self.name);
+        for column in &self.columns {
+            write!(f, "{:?}", column);
+        }
+        Ok(())
     }
 }

@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use crate::error::Error;
 use crate::error::Result;
 use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::schema::data_value::DataValue;
@@ -47,8 +48,41 @@ pub enum ResultSet {
     Explain(PlanNode),
 }
 
+impl ResultSet {
+    fn empty_rows() -> DataRows {
+        Box::new(std::iter::empty())
+    }
+
+    pub fn into_row(self) -> Result<DataRow> {
+        if let ResultSet::Query { mut rows, .. } = self {
+            rows.next()
+                .transpose()?
+                .ok_or_else(|| Error::Value("No rows returned".into()))
+        } else {
+            Err(Error::Value(format!("Not a query result: {}", self)))
+        }
+    }
+
+    pub fn into_value(self) -> Result<DataValue> {
+        self.into_row()?
+            .into_iter()
+            .next()
+            .ok_or_else(|| Error::Value("No value returned".into()))
+    }
+}
+
 impl Display for ResultSet {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Create { count } => write!(f, "ResultSet::Create{{count:{}}}", count),
+            Self::CreateTable { name } => write!(f, "ResultSet::CreateTable{{name: {}}}", name),
+            Self::DropTable { name } => write!(f, "ResultSet::DropTable{{name: {}}}", name),
+            Self::Query { columns, rows: _ } => {
+                write!(f, "ResultSet::Query:\r\n columns:{:?}", columns)
+            }
+            Self::Update { count } => write!(f, "ResultSet::Update{{count: {}}}", count),
+            Self::Delete { count } => write!(f, "ResultSet::Delete{{count: {}}}", count),
+            Self::Explain(plan) => write!(f, "ResultSet::Explain({})", plan),
+        }
     }
 }

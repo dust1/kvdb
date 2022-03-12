@@ -32,18 +32,37 @@ impl Table {
     }
 
     /// get index base on the column name
-    pub fn get_column_index(&self, _column_name: &str) -> Result<usize> {
-        todo!()
+    pub fn get_column_index(&self, column_name: &str) -> Result<usize> {
+        self.columns
+            .iter()
+            .enumerate()
+            .find(|(_, c)| c.name == column_name)
+            .map(|(i, _)| i)
+            .ok_or_else(|| {
+                Error::Value(format!(
+                    "Column {} not found in table {}",
+                    column_name, self.name
+                ))
+            })
     }
 
     /// return the table column with the column name
-    pub fn get_column(&self, _name: &str) -> Result<&TableColumn> {
-        todo!()
+    pub fn get_column(&self, name: &str) -> Result<&TableColumn> {
+        self.columns.iter().find(|c| c.name == name).ok_or_else(|| {
+            Error::Value(format!("Column {} not found in table {}", name, self.name))
+        })
     }
 
     /// return the primary key value of a row
-    pub fn get_row_key(&self, _row: &[DataValue]) -> Result<DataValue> {
-        todo!()
+    pub fn get_row_key(&self, row: &[DataValue]) -> Result<DataValue> {
+        row.get(
+            self.columns
+                .iter()
+                .position(|c| c.primary_key)
+                .ok_or_else(|| Error::Value("Table can not found primary key".into()))?,
+        )
+        .cloned()
+        .ok_or_else(|| Error::Value("primary key can not found for row".into()))
     }
 
     /// return the primaryt key of this table

@@ -101,7 +101,7 @@ impl Snapshot {
     }
 
     /// check whether the given version is visible in this snapshot
-    fn is_visable(&self, version: u64) -> bool {
+    pub fn is_visable(&self, version: u64) -> bool {
         version < self.version && !self.invisible.contains(&version)
     }
 }
