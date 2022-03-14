@@ -11,6 +11,7 @@ use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::DeletePlan;
 use crate::sql::plan::planners::ScanPlan;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct KVDeleteStatement {
     pub table_name: ObjectName,
     pub selection: Option<Expr>,

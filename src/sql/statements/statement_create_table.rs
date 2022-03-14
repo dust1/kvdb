@@ -11,6 +11,7 @@ use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::CreateTablePlan;
 use crate::sql::schema::table_column::TableColumn;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct KVCreateTableStatement {
     pub if_not_exists: bool,
     pub name: ObjectName,

@@ -20,6 +20,7 @@ use crate::sql::plan::planners::GroupByPlan;
 use crate::sql::plan::planners::ProjectionPlan;
 use crate::sql::plan::planners::ScanPlan;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct KVQueryStatement {
     pub from: Vec<TableWithJoins>,
     pub projection: Vec<SelectItem>,

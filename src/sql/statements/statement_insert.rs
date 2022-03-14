@@ -12,6 +12,7 @@ use crate::sql::plan::plan_expression::Expression;
 use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::InsertPlan;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct KVInsertStatement {
     /// Only for Sqlite
     pub or: Option<SqliteOnConflict>,

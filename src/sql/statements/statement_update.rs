@@ -12,6 +12,7 @@ use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::ScanPlan;
 use crate::sql::plan::planners::UpdatePlan;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct KVUpdateStatement {
     pub table_name: ObjectName,
     pub assignments: Vec<Assignment>,

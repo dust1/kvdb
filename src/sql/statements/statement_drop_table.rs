@@ -7,6 +7,7 @@ use crate::sql::engine::Catalog;
 use crate::sql::plan::plan_node::PlanNode;
 use crate::sql::plan::planners::DropTablePlan;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct KVDropTableStatement {
     pub if_exists: bool,
     pub names: Vec<ObjectName>,

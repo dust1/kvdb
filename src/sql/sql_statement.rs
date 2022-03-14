@@ -5,6 +5,7 @@ use super::statements::KVInsertStatement;
 use super::statements::KVQueryStatement;
 use super::statements::KVUpdateStatement;
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum KVStatement {
     Query(KVQueryStatement),
     Insert(KVInsertStatement),
