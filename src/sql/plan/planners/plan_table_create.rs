@@ -23,10 +23,6 @@ impl CreateTablePlan {
 
 impl Display for CreateTablePlan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "table_name: {}", self.name);
-        for column in &self.columns {
-            write!(f, "{:?}", column);
-        }
-        Ok(())
+        write!(f, "table_name: {}, columns: {:?}", self.name, self.columns)
     }
 }
