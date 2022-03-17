@@ -265,13 +265,11 @@ impl SQLTransaction for KVTransaction {
 }
 
 impl Catalog for KVTransaction {
-    fn read_table(
-        &self,
-        table: &str,
-    ) -> crate::error::Result<Option<crate::sql::schema::table::Table>> {
-        let key = SQLKey::Table(Some(table.into()));
-        if let Some(v) = self.txn.get(&key.encode())? {
-            return Ok(Some(deserialize(&v)?));
+    fn read_table(&self, table: &str) -> Result<Option<Table>> {
+        let key = &SQLKey::Table(Some(table.into())).encode();
+        if let Some(v) = self.txn.get(key)? {
+            let re = deserialize::<Table>(&v)?;
+            return Ok(Some(re));
         }
         Ok(None)
     }
@@ -284,10 +282,10 @@ impl Catalog for KVTransaction {
             )));
         }
         table.validate(self)?;
-        self.txn.set(
-            &SQLKey::Table(Some((&table.name).into())).encode(),
-            serialize(&table)?,
-        )
+
+        let key = &SQLKey::Table(Some((&table.name).into())).encode();
+        let table_value = serialize(&table)?;
+        self.txn.set(key, table_value)
     }
 
     fn delete_table(&mut self, table: &str) -> crate::error::Result<()> {

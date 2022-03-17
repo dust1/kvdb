@@ -19,7 +19,7 @@ pub enum DataValue {
     String(String),
 }
 
-impl Eq for DataValue {}
+impl std::cmp::Eq for DataValue {}
 
 impl Hash for DataValue {
     fn hash<H: Hasher>(&self, state: &mut H) {

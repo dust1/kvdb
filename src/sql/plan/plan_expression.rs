@@ -18,12 +18,11 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::sql::schema::data_value::DataValue;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq)]
 pub enum Expression {
     // Values
     Constant(DataValue),
     Field(usize, Option<(Option<String>, String)>),
-    Wildcard,
 
     // Logical operations
     And(Box<Expression>, Box<Expression>),
@@ -79,7 +78,6 @@ impl Display for Expression {
             Self::Subtract(lhs, rhs) => format!("{} - {}", lhs, rhs),
 
             Self::Like(lhs, rhs) => format!("{} LIKE {}", lhs, rhs),
-            Self::Wildcard => "*".to_string(),
         };
         write!(f, "{}", s)
     }
@@ -110,13 +108,14 @@ impl Expression {
     pub fn from_select_item(
         select: &SelectItem,
         scope: &mut Scope,
-    ) -> Result<(Expression, Option<String>)> {
+    ) -> Result<Option<(Expression, Option<String>)>> {
         match select {
-            SelectItem::UnnamedExpr(expr) => Ok((Expression::from_expr(expr, scope)?, None)),
-            SelectItem::ExprWithAlias { expr, alias } => {
-                Ok((Expression::from_expr(expr, scope)?, Some(alias.to_string())))
-            }
-            SelectItem::Wildcard => Ok((Expression::Wildcard, None)),
+            SelectItem::UnnamedExpr(expr) => Ok(Some((Expression::from_expr(expr, scope)?, None))),
+            SelectItem::ExprWithAlias { expr, alias } => Ok(Some((
+                Expression::from_expr(expr, scope)?,
+                Some(alias.to_string()),
+            ))),
+            SelectItem::Wildcard => Ok(None),
             SelectItem::QualifiedWildcard(_) => Err(Error::Value(
                 "can not support alias.* or even schema.table.*".to_string(),
             )),
@@ -227,7 +226,6 @@ impl Expression {
                     return Err(Error::Value(format!("Unsupported SQL statement. {}", expr)));
                 }
             }
-            Expr::Wildcard => Wildcard,
             _ => todo!(),
         })
     }
@@ -239,7 +237,6 @@ impl Expression {
             // constant value
             Self::Constant(c) => c.clone(),
             Self::Field(i, _) => row.and_then(|row| row.get(*i).cloned()).unwrap_or(Null),
-            Self::Wildcard => Null,
             Self::Equal(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
                 (Boolean(lhs), Boolean(rhs)) => Boolean(lhs == rhs),
                 (Integer(lhs), Integer(rhs)) => Boolean(lhs == rhs),

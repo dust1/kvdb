@@ -26,24 +26,28 @@ impl<T: SQLTransaction + 'static> KVExecutor<T> for ProjectionExec<T> {
         if let ResultSet::Query { rows, columns } = self.source.execute(txn)? {
             let (expressions, label): (Vec<Expression>, Vec<Option<String>>) =
                 self.expressions.into_iter().unzip();
-            let columns = expressions
-                .iter()
-                .enumerate()
-                .map(|(i, e)| {
-                    if let Some(Some(name)) = label.get(i) {
-                        DataColumn {
-                            name: Some(name.clone()),
+            let columns = if expressions.is_empty() {
+                columns
+            } else {
+                expressions
+                    .iter()
+                    .enumerate()
+                    .map(|(i, e)| {
+                        if let Some(Some(name)) = label.get(i) {
+                            DataColumn {
+                                name: Some(name.clone()),
+                            }
+                        } else if let Expression::Field(i, _) = e {
+                            columns
+                                .get(*i)
+                                .cloned()
+                                .unwrap_or(DataColumn { name: None })
+                        } else {
+                            DataColumn { name: None }
                         }
-                    } else if let Expression::Field(i, _) = e {
-                        columns
-                            .get(*i)
-                            .cloned()
-                            .unwrap_or(DataColumn { name: None })
-                    } else {
-                        DataColumn { name: None }
-                    }
-                })
-                .collect();
+                    })
+                    .collect()
+            };
 
             let rows = Box::new(rows.map(move |r| {
                 r.and_then(|row| {

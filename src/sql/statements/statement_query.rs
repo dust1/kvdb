@@ -115,8 +115,9 @@ impl KVQueryStatement {
         let projections = self
             .projection
             .iter()
-            .map(|select| Expression::from_select_item(select, scope))
+            .flat_map(|select| Expression::from_select_item(select, scope).transpose())
             .collect::<Result<Vec<_>>>()?;
+
         let p = &projections[..];
         scope.project(p)?;
         Ok(PlanNode::Projection(ProjectionPlan {

@@ -10,7 +10,7 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::sql::engine::SQLTransaction;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TableColumn {
     /// Column name
     pub name: String,

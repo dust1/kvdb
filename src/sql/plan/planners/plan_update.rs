@@ -4,7 +4,7 @@ use serde_derive::Serialize;
 use crate::sql::plan::plan_expression::Expression;
 use crate::sql::plan::plan_node::PlanNode;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Eq)]
 pub struct UpdatePlan {
     pub table_name: String,
     pub source: Box<PlanNode>,

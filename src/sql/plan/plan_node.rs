@@ -13,7 +13,7 @@ use super::planners::ProjectionPlan;
 use super::planners::ScanPlan;
 use super::planners::UpdatePlan;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Eq)]
 pub enum PlanNode {
     CreateTable(CreateTablePlan),
     DropTable(DropTablePlan),

@@ -4,15 +4,15 @@ use crate::sql::plan::planners::GroupByPlan;
 use crate::sql::sql_executor::KVExecutor;
 
 pub struct GroupByExec<T: SQLTransaction> {
-    source: Box<dyn KVExecutor<T>>,
-    expressions: Vec<Expression>,
+    _source: Box<dyn KVExecutor<T>>,
+    _expressions: Vec<Expression>,
 }
 
 impl<T: SQLTransaction + 'static> GroupByExec<T> {
     pub fn new(plan: GroupByPlan) -> Box<Self> {
         Box::new(Self {
-            source: <dyn KVExecutor<T>>::build(*plan.source),
-            expressions: plan.expressions,
+            _source: <dyn KVExecutor<T>>::build(*plan.source),
+            _expressions: plan.expressions,
         })
     }
 }

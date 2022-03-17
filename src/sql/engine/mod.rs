@@ -6,4 +6,5 @@ mod sql_transaction;
 
 pub use kv::KVEngine;
 pub use sql_catalog::Catalog;
+pub use sql_engine::SQLEngine;
 pub use sql_transaction::SQLTransaction;

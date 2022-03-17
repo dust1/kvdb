@@ -32,7 +32,7 @@ impl PlanParser {
 
     /// optimize the plan, consuming it.
     pub fn optimize<C: Catalog>(self, _catalog: &mut C) -> Result<Self> {
-        /// just do it
+        // FIXME implement it
         Ok(self)
     }
 

@@ -6,7 +6,7 @@ use serde_derive::Serialize;
 use crate::sql::schema::table::Table;
 use crate::sql::schema::table_column::TableColumn;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CreateTablePlan {
     pub name: String,
     pub columns: Vec<TableColumn>,

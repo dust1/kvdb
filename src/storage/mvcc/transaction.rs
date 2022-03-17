@@ -252,7 +252,7 @@ impl MVCCTransaction {
             match TransactionKey::decode(&k)? {
                 TransactionKey::Record(_, id) => {
                     if self.snapshot.is_visable(id) {
-                        return Ok(Some(v));
+                        return Ok(deserialize(&v)?);
                     }
                 }
                 k => return Err(Error::Internal(format!("Excepted Txn::Record {}", k))),

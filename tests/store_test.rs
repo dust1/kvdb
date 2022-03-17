@@ -1,5 +1,9 @@
+
 use kvdb::common::range::Range;
 use kvdb::error::Result;
+
+
+
 use kvdb::storage::b_tree::Memory;
 use kvdb::storage::Store;
 
@@ -60,5 +64,10 @@ fn test_memory_kv() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+#[test]
+fn table_key_test() -> Result<()> {
     Ok(())
 }
