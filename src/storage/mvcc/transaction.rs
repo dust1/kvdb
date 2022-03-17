@@ -233,7 +233,7 @@ impl MVCCTransaction {
                 }
                 v => {
                     end[i] = v + 1;
-                    continue;
+                    break;
                 }
             }
         }
