@@ -8,8 +8,6 @@
 //! f64:     Big-endian binary representation, with sign bit flipped if +, all flipped if -.
 //! DataValue:   Like above, with type prefix 0x00=Null 0x01=Boolean 0x02=Float 0x03=Integer 0x04=String//! Order-preserving encodin
 
-
-
 use crate::error::Error;
 use crate::error::Result;
 use crate::sql::schema::data_value::DataValue;

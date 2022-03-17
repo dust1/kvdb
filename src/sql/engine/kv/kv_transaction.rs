@@ -174,7 +174,7 @@ impl SQLTransaction for KVTransaction {
         let scan = self
             .txn
             .scan_prefix(&SQLKey::Row((&table.name).into(), None).encode())?
-            .map(|r| r.and_then(|(_, v)| deserialize(&v)?))
+            .map(|r| r.and_then(|(_, v)| Ok(deserialize(&v)?)))
             .filter_map(move |r| match r {
                 Ok(row) => match &filter {
                     Some(filter) => match filter.evaluate(Some(&row)) {

@@ -2,9 +2,7 @@ use kvdb::common::result::ResultSet;
 use kvdb::error::Result;
 use kvdb::sql::engine::KVEngine;
 use kvdb::sql::engine::SQLEngine;
-
 use kvdb::storage::b_tree::Memory;
-
 use kvdb::storage::mvcc::MVCC;
 use kvdb::storage::Store;
 
@@ -19,11 +17,11 @@ fn test_query() -> Result<()> {
         let session = engine.session()?;
         let result = session.execute(sql)?;
         match result {
-            ResultSet::Query { columns, rows: _ } => {
+            ResultSet::Query { columns, mut rows } => {
                 println!("{:?}", columns);
-                // while let Some(row) = rows.next().transpose()? {
-                //     println!("{:?}", row);
-                // }
+                while let Some(row) = rows.next().transpose()? {
+                    println!("{:?}", row);
+                }
             }
             r => println!("{}", r),
         }

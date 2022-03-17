@@ -50,11 +50,12 @@ impl<T: SQLTransaction + 'static> KVExecutor<T> for ProjectionExec<T> {
             };
 
             let rows = Box::new(rows.map(move |r| {
-                r.and_then(|row| {
-                    expressions
+                r.and_then(|row| match expressions.is_empty() {
+                    true => Ok(row),
+                    false => expressions
                         .iter()
                         .map(|e| e.evaluate(Some(&row)))
-                        .collect::<Result<_>>()
+                        .collect::<Result<_>>(),
                 })
             }));
             Ok(ResultSet::Query { rows, columns })
