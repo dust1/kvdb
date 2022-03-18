@@ -10,7 +10,7 @@ use sqlparser::ast::Value;
 
 use super::data_type::DataType;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum DataValue {
     Null,
     Boolean(bool),
@@ -20,6 +20,33 @@ pub enum DataValue {
 }
 
 impl std::cmp::Eq for DataValue {}
+
+impl std::cmp::PartialEq for DataValue {
+    fn eq(&self, other: &DataValue) -> bool {
+        match self {
+            DataValue::Null => match other {
+                DataValue::Null => true,
+                _ => false,
+            },
+            DataValue::Boolean(l) => match other {
+                DataValue::Boolean(r) => l == r,
+                _ => false,
+            },
+            DataValue::Integer(l) => match other {
+                DataValue::Integer(r) => l == r,
+                _ => false,
+            },
+            DataValue::Float(l) => match other {
+                DataValue::Float(r) => l == r,
+                _ => false,
+            },
+            DataValue::String(l) => match other {
+                DataValue::String(r) => l == r,
+                _ => false
+            }
+        }
+    }
+}
 
 impl Hash for DataValue {
     fn hash<H: Hasher>(&self, state: &mut H) {

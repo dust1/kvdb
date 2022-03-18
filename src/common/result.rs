@@ -12,7 +12,7 @@ pub type DataRow = Vec<DataValue>;
 pub type DataRows = Box<dyn Iterator<Item = Result<DataRow>> + Send>;
 
 /// A column(in a result set)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataColumn {
     pub name: Option<String>,
 }
