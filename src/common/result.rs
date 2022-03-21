@@ -49,7 +49,6 @@ pub enum ResultSet {
 }
 
 impl ResultSet {
-
     pub fn into_row(self) -> Result<DataRow> {
         if let ResultSet::Query { mut rows, .. } = self {
             rows.next()

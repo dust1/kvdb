@@ -97,3 +97,45 @@ impl From<TokenizerError> for Error {
         Error::Internal(e.to_string())
     }
 }
+
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error {
+    fn from(err: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
+
+impl<T> From<tokio::sync::mpsc::error::TrySendError<T>> for Error {
+    fn from(err: tokio::sync::mpsc::error::TrySendError<T>) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
+
+impl From<tokio::sync::oneshot::error::RecvError> for Error {
+    fn from(err: tokio::sync::oneshot::error::RecvError) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
+
+impl From<tokio::task::JoinError> for Error {
+    fn from(err: tokio::task::JoinError) -> Self {
+        Error::Internal(err.to_string())
+    }
+}
+
+impl From<log::ParseLevelError> for Error {
+    fn from(err: log::ParseLevelError) -> Self {
+        Error::Config(err.to_string())
+    }
+}
+
+impl From<log::SetLoggerError> for Error {
+    fn from(err: log::SetLoggerError) -> Self {
+        Error::Config(err.to_string())
+    }
+}
+
+impl From<config::ConfigError> for Error {
+    fn from(err: config::ConfigError) -> Self {
+        Error::Config(err.to_string())
+    }
+}

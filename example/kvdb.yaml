@@ -1,0 +1,6 @@
+id: kvdb
+data_dir: data
+sync: false
+listen_sql: 0.0.0.0:9601
+log_level: info
+storage_sql: memory
