@@ -42,8 +42,8 @@ impl std::cmp::PartialEq for DataValue {
             },
             DataValue::String(l) => match other {
                 DataValue::String(r) => l == r,
-                _ => false
-            }
+                _ => false,
+            },
         }
     }
 }

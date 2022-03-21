@@ -25,7 +25,7 @@ impl Range {
         }
     }
 
-    fn contains(&self, v: &[u8]) -> bool {
+    fn _contains(&self, v: &[u8]) -> bool {
         (match &self.start {
             Bound::Included(start) => &**start <= v,
             Bound::Excluded(start) => &**start < v,

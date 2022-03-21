@@ -49,9 +49,6 @@ pub enum ResultSet {
 }
 
 impl ResultSet {
-    fn empty_rows() -> DataRows {
-        Box::new(std::iter::empty())
-    }
 
     pub fn into_row(self) -> Result<DataRow> {
         if let ResultSet::Query { mut rows, .. } = self {

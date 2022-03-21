@@ -28,27 +28,34 @@ fn query_test() -> Result<()> {
                     name: Some("id".into()),
                 },
                 DataColumn {
-                    name: Some("name".into())
-                }
+                    name: Some("name".into()),
+                },
             ],
             rows: vec![
-                vec![DataValue::String("fr".into()), DataValue::String("France".into())],
-                vec![DataValue::String("ru".into()), DataValue::String("Russia".into())],
-                vec![DataValue::String("us".into()), DataValue::String("United States of America".into())],
-            ]
+                vec![
+                    DataValue::String("fr".into()),
+                    DataValue::String("France".into()),
+                ],
+                vec![
+                    DataValue::String("ru".into()),
+                    DataValue::String("Russia".into()),
+                ],
+                vec![
+                    DataValue::String("us".into()),
+                    DataValue::String("United States of America".into()),
+                ],
+            ],
         },
         QueryTest {
             sql: "SELECT id from countries",
-            columns: vec![
-                DataColumn {
-                    name: Some("id".into()),
-                },
-            ],
+            columns: vec![DataColumn {
+                name: Some("id".into()),
+            }],
             rows: vec![
                 vec![DataValue::String("fr".into())],
                 vec![DataValue::String("ru".into())],
                 vec![DataValue::String("us".into())],
-            ]
+            ],
         },
         QueryTest {
             sql: "SELECT * from countries where id = 'fr'",
@@ -57,12 +64,13 @@ fn query_test() -> Result<()> {
                     name: Some("id".into()),
                 },
                 DataColumn {
-                    name: Some("name".into())
-                }
+                    name: Some("name".into()),
+                },
             ],
-            rows: vec![
-                vec![DataValue::String("fr".into()), DataValue::String("France".into())],
-            ]
+            rows: vec![vec![
+                DataValue::String("fr".into()),
+                DataValue::String("France".into()),
+            ]],
         },
         QueryTest {
             sql: "SELECT * from countries where name = 'Russia'",
@@ -71,12 +79,13 @@ fn query_test() -> Result<()> {
                     name: Some("id".into()),
                 },
                 DataColumn {
-                    name: Some("name".into())
-                }
+                    name: Some("name".into()),
+                },
             ],
-            rows: vec![
-                vec![DataValue::String("ru".into()), DataValue::String("Russia".into())],
-            ]
+            rows: vec![vec![
+                DataValue::String("ru".into()),
+                DataValue::String("Russia".into()),
+            ]],
         },
         QueryTest {
             sql: "SELECT id num, name title from countries",
@@ -85,14 +94,23 @@ fn query_test() -> Result<()> {
                     name: Some("num".into()),
                 },
                 DataColumn {
-                    name: Some("title".into())
-                }
+                    name: Some("title".into()),
+                },
             ],
             rows: vec![
-                vec![DataValue::String("fr".into()), DataValue::String("France".into())],
-                vec![DataValue::String("ru".into()), DataValue::String("Russia".into())],
-                vec![DataValue::String("us".into()), DataValue::String("United States of America".into())],
-            ]
+                vec![
+                    DataValue::String("fr".into()),
+                    DataValue::String("France".into()),
+                ],
+                vec![
+                    DataValue::String("ru".into()),
+                    DataValue::String("Russia".into()),
+                ],
+                vec![
+                    DataValue::String("us".into()),
+                    DataValue::String("United States of America".into()),
+                ],
+            ],
         },
     ];
 
@@ -112,7 +130,7 @@ fn query_test() -> Result<()> {
                     index += 1;
                 }
             }
-            r => assert!(false),
+            _r => assert!(false),
         }
     }
     Ok(())
@@ -125,7 +143,6 @@ struct UpdateTest {
     columns: Vec<DataColumn>,
     rows: Vec<DataRow>,
 }
-
 
 #[test]
 fn update_test() -> Result<()> {
@@ -142,12 +159,13 @@ fn update_test() -> Result<()> {
                     name: Some("id".into()),
                 },
                 DataColumn {
-                    name: Some("name".into())
-                }
+                    name: Some("name".into()),
+                },
             ],
-            rows: vec![
-                vec![DataValue::String("fr".into()), DataValue::String("UpdateFrance".into())],
-            ]
+            rows: vec![vec![
+                DataValue::String("fr".into()),
+                DataValue::String("UpdateFrance".into()),
+            ]],
         },
         UpdateTest {
             update_sql: "UPDATE genres set id = 4 where id = 1",
@@ -158,15 +176,52 @@ fn update_test() -> Result<()> {
                     name: Some("id".into()),
                 },
                 DataColumn {
-                    name: Some("name".into())
-                }
+                    name: Some("name".into()),
+                },
             ],
-            rows: vec![
-                vec![DataValue::Integer(4), DataValue::String("Science Fiction".into())],
-            ]
-        }
+            rows: vec![vec![
+                DataValue::Integer(4),
+                DataValue::String("Science Fiction".into()),
+            ]],
+        },
     ];
-    
+
+    update_check_test(&tests, &mut engine)
+}
+
+#[test]
+fn delete_tests() -> Result<()> {
+    let mut engine = get_engine();
+    init_db(&mut engine)?;
+
+    let tests = [UpdateTest {
+        update_sql: "DELETE from countries where id = 'fr'",
+        update_count: 1,
+        check_sql: "SELECT * from countries",
+        columns: vec![
+            DataColumn {
+                name: Some("id".into()),
+            },
+            DataColumn {
+                name: Some("name".into()),
+            },
+        ],
+        rows: vec![
+            vec![
+                DataValue::String("ru".into()),
+                DataValue::String("Russia".into()),
+            ],
+            vec![
+                DataValue::String("us".into()),
+                DataValue::String("United States of America".into()),
+            ],
+        ],
+    }];
+
+    update_check_test(&tests, &mut engine)
+}
+
+fn update_check_test(tests: &[UpdateTest], engine: &mut KVEngine) -> Result<()> {
     for test in tests {
         let session = engine.session()?;
         let result = session.execute(&test.update_sql)?;
@@ -186,36 +241,32 @@ fn update_test() -> Result<()> {
                             }
                             index += 1;
                         }
-                    },
-                    r => assert!(false, "check result error: {}", r)
+                    }
+                    r => assert!(false, "check result error: {}", r),
                 }
-            },
+            }
+            ResultSet::Delete { count } => {
+                assert_eq!(count, test.update_count);
+                let result = session.execute(&test.check_sql)?;
+                match result {
+                    ResultSet::Query { columns, mut rows } => {
+                        assert_eq!(columns, test.columns);
+                        let mut index = 0;
+                        while let Some(row) = rows.next().transpose()? {
+                            if let Some(test_row) = test.rows.get(index) {
+                                assert_eq!(&row, test_row);
+                            } else {
+                                assert!(false);
+                            }
+                            index += 1;
+                        }
+                    }
+                    r => assert!(false, "check result error: {}", r),
+                }
+            }
             r => assert!(false, "update result error: {}", r),
         }
     }
-    Ok(())
-}
-
-#[test]
-fn delete_tests() -> Result<()> {
-    let tests = [
-        UpdateTest {
-            update_sql: "DELETE from countries where id = 'fr",
-            update_count: 1,
-            check_sql: "SELECT * from countries",
-            columns: vec![
-                DataColumn {
-                    name: Some("id".into()),
-                },
-                DataColumn {
-                    name: Some("name".into())
-                }
-            ],
-            rows: vec![
-                vec![DataValue::String("fr".into()), DataValue::String("UpdateFrance".into())],
-            ]       
-        }
-    ];
     Ok(())
 }
 
