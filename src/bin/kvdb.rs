@@ -4,7 +4,7 @@ use clap::crate_description;
 use clap::crate_name;
 use clap::crate_version;
 use kvdb::error::*;
-use kvdb::server::Server;
+use kvdb::server::sql_server::Server;
 use kvdb::storage;
 use serde_derive::Deserialize;
 
