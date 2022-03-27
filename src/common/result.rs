@@ -1,5 +1,9 @@
 use std::fmt::Display;
 
+use derivative::Derivative;
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
+
 use crate::error::Error;
 use crate::error::Result;
 use crate::sql::plan::plan_node::PlanNode;
@@ -12,7 +16,7 @@ pub type DataRow = Vec<DataValue>;
 pub type DataRows = Box<dyn Iterator<Item = Result<DataRow>> + Send>;
 
 /// A column(in a result set)
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataColumn {
     pub name: Option<String>,
 }
@@ -20,6 +24,8 @@ pub struct DataColumn {
 /// a set of columns
 pub type DataColumns = Vec<DataColumn>;
 
+#[derive(Derivative, Serialize, Deserialize)]
+#[derivative(Debug, PartialEq)]
 pub enum ResultSet {
     // rows created
     Create {
@@ -36,6 +42,9 @@ pub enum ResultSet {
     // query result
     Query {
         columns: DataColumns,
+        #[derivative(Debug = "ignore")]
+        #[derivative(PartialEq = "ignore")]
+        #[serde(skip, default = "ResultSet::empty_rows")]
         rows: DataRows,
     },
     Update {
@@ -49,6 +58,10 @@ pub enum ResultSet {
 }
 
 impl ResultSet {
+    pub fn empty_rows() -> DataRows {
+        Box::new(std::iter::empty())
+    }
+
     pub fn into_row(self) -> Result<DataRow> {
         if let ResultSet::Query { mut rows, .. } = self {
             rows.next()

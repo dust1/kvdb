@@ -1,6 +1,7 @@
 use super::sql_engine::SQLEngine;
 use super::SQLTransaction;
 use crate::common::result::ResultSet;
+use crate::error::Error;
 use crate::error::Result;
 use crate::sql::plan_parser::PlanParser;
 use crate::storage::mvcc::TransactionMode;
@@ -27,5 +28,24 @@ impl<E: SQLEngine + 'static> SQLSession<E> {
                 Err(e)
             }
         }
+    }
+
+    /// runs a closure in the session's transaction, or a new transaction if none is active
+    pub fn with_txn<R, F>(&mut self, mode: TransactionMode, f: F) -> Result<R>
+    where F: FnOnce(&mut E::Transaction) -> Result<R> {
+        if let Some(ref mut txn) = self.txn {
+            if !txn.mode().satisfies(&mode) {
+                return Err(Error::Value(
+                    "The operation cannot run in the current transaction".into(),
+                ));
+            }
+            return f(txn);
+        }
+
+        // a new transaction
+        let mut txn = self.engine.begin(mode)?;
+        let result = f(&mut txn);
+        txn.rollback()?;
+        result
     }
 }
