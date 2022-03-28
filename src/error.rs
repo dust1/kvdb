@@ -139,3 +139,9 @@ impl From<config::ConfigError> for Error {
         Error::Config(err.to_string())
     }
 }
+
+impl From<rustyline::error::ReadlineError> for Error {
+    fn from(err: rustyline::error::ReadlineError) -> Self {
+        Error::Internal(err.to_string())
+    }
+}

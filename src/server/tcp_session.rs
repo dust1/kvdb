@@ -1,4 +1,6 @@
 use futures::sink::SinkExt as _;
+
+use log::info;
 use tokio::net::TcpStream;
 use tokio_stream::StreamExt as _;
 use tokio_util::codec::Framed;
@@ -35,7 +37,7 @@ impl TCPSession {
         );
 
         while let Some(request) = stream.try_next().await? {
-            println!("request info {:?}", request);
+            info!("request info {:?}", request);
             let mut response = self.request(request);
 
             let mut rows: Box<dyn Iterator<Item = Result<Response>> + Send> =
