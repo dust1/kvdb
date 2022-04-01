@@ -1,5 +1,4 @@
 use futures::sink::SinkExt as _;
-
 use log::info;
 use tokio::net::TcpStream;
 use tokio_stream::StreamExt as _;
@@ -18,7 +17,7 @@ use crate::storage::mvcc::TransactionMode;
 
 /// a client session coupled to a SQL session
 pub struct TCPSession {
-    engine: KVEngine,
+    _engine: KVEngine,
     session: SQLSession<KVEngine>,
 }
 
@@ -26,7 +25,7 @@ impl TCPSession {
     pub fn new(engine: KVEngine) -> Result<Self> {
         Ok(Self {
             session: engine.session()?,
-            engine,
+            _engine: engine,
         })
     }
 
@@ -38,11 +37,12 @@ impl TCPSession {
 
         while let Some(request) = stream.try_next().await? {
             info!("request info {:?}", request);
+            // execute request
             let mut response = self.request(request);
 
+            // separate columns from rows
             let mut rows: Box<dyn Iterator<Item = Result<Response>> + Send> =
                 Box::new(std::iter::empty());
-
             if let Ok(Response::Execute(ResultSet::Query {
                 rows: ref mut resultrows,
                 ..
@@ -51,6 +51,7 @@ impl TCPSession {
                 rows = Box::new(
                     std::mem::replace(resultrows, Box::new(std::iter::empty()))
                         .map(|result| result.map(|row| Response::Row(Some(row))))
+                        // package with Response::Row
                         .chain(std::iter::once(Ok(Response::Row(None))))
                         .scan(false, |err_sent, response| match (&err_sent, &response) {
                             (true, _) => None,
@@ -64,7 +65,9 @@ impl TCPSession {
                 );
             }
 
+            // send response type
             stream.send(response).await?;
+            // send response rows
             stream
                 .send_all(&mut tokio_stream::iter(rows.map(Ok)))
                 .await?;

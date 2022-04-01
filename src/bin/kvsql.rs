@@ -4,9 +4,9 @@ use clap::crate_description;
 use clap::crate_name;
 use clap::crate_version;
 use kvdb::client::Client;
+use kvdb::common::result::ResultSet;
 use kvdb::error::Result;
 use kvdb::storage::mvcc::TransactionMode;
-use log::info;
 use rustyline::validate::Validator;
 use rustyline::Editor;
 use rustyline::Modifiers;
@@ -97,8 +97,46 @@ impl KVSQL {
         Ok(())
     }
 
+    /// execute command
     async fn execute(&mut self, command: &str) -> Result<()> {
-        info!("kvsql: {}", command);
+        if command.starts_with("!") {
+            self.execute_command(command).await
+        } else {
+            self.execute_query(command).await
+        }
+    }
+
+    /// execute sql query
+    async fn execute_query(&mut self, command: &str) -> Result<()> {
+        match self.client.execute(command).await? {
+            ResultSet::Query { columns, mut rows } => {
+                println!(
+                    "{}",
+                    columns
+                        .iter()
+                        .map(|c| c.name.as_deref().unwrap_or("?"))
+                        .collect::<Vec<_>>()
+                        .join("|")
+                );
+
+                while let Some(row) = rows.next().transpose()? {
+                    println!(
+                        "{}",
+                        row.into_iter()
+                            .map(|v| format!("{}", v))
+                            .collect::<Vec<_>>()
+                            .join("|")
+                    );
+                }
+            }
+            r => println!("{}", r),
+        }
+
+        Ok(())
+    }
+
+    /// execute db command. e.g. !help
+    async fn execute_command(&mut self, _command: &str) -> Result<()> {
         todo!()
     }
 
