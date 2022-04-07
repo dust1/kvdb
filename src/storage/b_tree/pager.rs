@@ -1,8 +1,14 @@
 use std::collections::HashMap;
+use std::env::temp_dir;
 use std::fs::File;
+use std::fs::OpenOptions;
+
 use std::path::Path;
+use std::path::PathBuf;
+
 use std::sync::Arc;
 
+use crate::error::Error;
 use crate::error::Result;
 
 type Pgno = u32;
@@ -14,19 +20,17 @@ enum PageLockState {
 }
 
 struct Pager {
-    z_filename: String,                    // database filename
-    z_journal: String,                     // database journal filename
     fd: File,                              // file descriptor for database
     jfd: File,                             // file descriptor for journal
-    cpfd: File,                            // file descriptor for checkpoint journal
-    db_size: u32,                          // number of pages in the database filename
+    cpfd: Option<File>,                    // file descriptor for checkpoint journal
+    db_size: i32,                          // number of pages in the database filename
     orig_db_size: u64,                     // db_size before the current change
     ckpt_size: u64,                        // size of database at ckpt_begine()
     ckpt_j_size: u64,                      // size of journal at ckpt_begine()
     n_extra: u64, // add this many bytes to each in-memory page, the user extra data size
     n_page: u32,  // total number of in-memory pages
     n_ref: u32,   // number of in-memory page with PgHdr.n_ref > 0
-    mx_pagt: u32, // max number of pages to hold in cache
+    mx_page: u32, // max number of pages to hold in cache
     n_hit: u32,   // cache hits
     n_miss: u32,  // cache miss
     n_ovfl: u32,  // LRU overflows
@@ -62,7 +66,58 @@ struct PgHdr {
 }
 
 impl Pager {
-    pub fn open<P: AsRef<Path>>(_db_path: P, _max_path: u32, _n_extra: u64) -> Result<Self> {
-        todo!()
+    pub fn open<P: AsRef<Path>>(db_path: Option<P>, max_page: u32, n_extra: u64) -> Result<Self> {
+        let mut fd_path = temp_dir().join("kvdb_temp");
+        let mut jfd_path = temp_dir().join("kvdb_temp_journal");
+        let temp_file = db_path.is_none();
+
+        if let Some(p) = db_path {
+            jfd_path = p
+                .as_ref()
+                .parent()
+                .ok_or(Error::Internal("db_path parent unexception".into()))?
+                .join("kvdb_journal");
+            fd_path = PathBuf::from(p.as_ref());
+        }
+
+        let fd = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(fd_path)?;
+        let jfd = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(jfd_path)?;
+        Ok(Pager {
+            fd,
+            jfd,
+            cpfd: None,
+            db_size: -1,
+            orig_db_size: 0,
+            ckpt_size: 0,
+            ckpt_j_size: 0,
+            n_extra,
+            n_page: 0,
+            n_ref: 0,
+            mx_page: if max_page > 5 { max_page } else { 10 },
+            n_hit: 0,
+            n_miss: 0,
+            n_ovfl: 0,
+            journal_open: true,
+            ckpt_open: false,
+            no_sync: false,
+            stats: PageLockState::UNLOCK,
+            err_mask: 0,
+            temp_file,
+            read_only: false,
+            need_sync: false,
+            dirty_file: false,
+            p_first: None,
+            p_last: None,
+            p_all: None,
+            a_hash: Arc::new(HashMap::new()),
+        })
     }
 }
