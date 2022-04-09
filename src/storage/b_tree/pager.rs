@@ -1,12 +1,14 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::fs::File;
 use std::fs::OpenOptions;
-
 use std::path::Path;
 use std::path::PathBuf;
-
+use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::RwLock;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -19,8 +21,12 @@ enum PageLockState {
     WRITELOCK,
 }
 
+pub struct PagerManager {
+    pager: Rc<RefCell<Pager>>,
+}
+
 struct Pager {
-    fd: File,                              // file descriptor for database
+    fd: RwLock<File>,                      // file descriptor for database
     jfd: File,                             // file descriptor for journal
     cpfd: Option<File>,                    // file descriptor for checkpoint journal
     db_size: i32,                          // number of pages in the database filename
@@ -50,13 +56,13 @@ struct Pager {
 }
 
 struct PgHdr {
-    pager: Arc<Pager>,               // the pager
+    pager: Rc<RefCell<Pager>>,       // the pager
     pgno: Pgno,                      // the page number of this page
     p_next_hash: Option<Arc<PgHdr>>, // hash collection chain for PgHdr.pgno
     p_prev_hash: Option<Arc<PgHdr>>, // hash collection chain for PgHdr.pgno
     n_ref: u32,                      // number of users of this page
     p_next_free: Option<Arc<PgHdr>>, // freelist of pages where n_ref == 0
-    p_pref_free: Option<Arc<PgHdr>>, // freelist of pages where n_ref == 0
+    p_prev_free: Option<Arc<PgHdr>>, // freelist of pages where n_ref == 0
     p_next_all: Option<Arc<PgHdr>>,  // a list of all pages
     p_prev_all: Option<Arc<PgHdr>>,  // a list of all pages
     in_journal: bool,                // true if has been written to journal
@@ -91,7 +97,7 @@ impl Pager {
             .create(true)
             .open(jfd_path)?;
         Ok(Pager {
-            fd,
+            fd: RwLock::new(fd),
             jfd,
             cpfd: None,
             db_size: -1,
@@ -119,5 +125,66 @@ impl Pager {
             p_all: None,
             a_hash: Arc::new(HashMap::new()),
         })
+    }
+
+    /// try to get PgHdr with Pgno, if it was miss in cache, returned None
+    pub fn lookup(&mut self, pgno: Pgno) -> Result<Option<PgHdr>> {
+        todo!()
+    }
+
+    /// read journal and play load it
+    fn playback_journal(&mut self) -> Result<()> {
+        todo!()
+    }
+}
+
+impl PgHdr {
+    pub fn new(pager: Rc<RefCell<Pager>>, pgno: Pgno) -> Result<Self> {
+        Ok(Self {
+            pager,
+            pgno,
+            p_next_hash: None,
+            p_prev_hash: None,
+            n_ref: 0,
+            p_next_free: None,
+            p_prev_free: None,
+            p_next_all: None,
+            p_prev_all: None,
+            in_journal: false,
+            in_ckpt: false,
+            dirty: false,
+        })
+    }
+}
+
+impl PagerManager {
+    pub fn new<P: AsRef<Path>>(db_path: Option<P>, mx_page: u32, n_extra: u64) -> Result<Self> {
+        let pager = Pager::open(db_path, mx_page, n_extra)?;
+        Ok(Self {
+            pager: Rc::new(RefCell::new(pager)),
+        })
+    }
+
+    /// try to get PgHdr with Pgno, if it was miss in cache, we should create it
+    pub fn get(&mut self, pgno: Pgno) -> Result<PgHdr> {
+        let mut pager = self.pager.as_ref().borrow_mut();
+        let mut p_pg = None;
+        if pager.n_ref == 0 {
+            // first use, try to playback journal
+            pager.playback_journal()?;
+        } else {
+            // try to get page in memory use given pg_no
+            p_pg = pager.lookup(pgno)?;
+        }
+
+        if p_pg.is_none() {
+            pager.n_miss += 1;
+            p_pg = Some(PgHdr::new(Rc::clone(&self.pager), pgno)?);
+            pager.n_page += 1;
+        } else {
+            pager.n_hit += 1;
+        }
+
+        todo!()
     }
 }
