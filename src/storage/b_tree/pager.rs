@@ -1,19 +1,40 @@
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env::temp_dir;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::io::BufWriter;
+use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
+use std::io::Write;
+use std::mem::size_of;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::RwLock;
+
+
 
 use crate::error::Error;
 use crate::error::Result;
 
 type Pgno = u32;
+
+const N_PG_HASH: u32 = 2003;
+
+const PAGE_SIZE: usize = 1024;
+
+const JOURNAL_MAGIC: [u8; 8] = [0xca, 0xfe, 0xba, 0xbe, 0xa1, 0xb2, 0xc3, 0xd4];
+
+/// page record in jrounal
+#[derive(Clone)]
+struct PageRecord {
+    pgno: Pgno,
+    data: [u8; PAGE_SIZE],
+}
 
 enum PageLockState {
     UNLOCK,
@@ -26,13 +47,13 @@ pub struct PagerManager {
 }
 
 struct Pager {
-    fd: RwLock<File>,                      // file descriptor for database
-    jfd: File,                             // file descriptor for journal
-    cpfd: Option<File>,                    // file descriptor for checkpoint journal
-    db_size: i32,                          // number of pages in the database filename
-    orig_db_size: u64,                     // db_size before the current change
-    ckpt_size: u64,                        // size of database at ckpt_begine()
-    ckpt_j_size: u64,                      // size of journal at ckpt_begine()
+    fd: Mutex<File>,                          // file descriptor for database
+    jfd: Mutex<File>,                         // file descriptor for journal
+    cpfd: Option<File>,                       // file descriptor for checkpoint journal
+    db_size: i32,                             // number of pages in the database filename
+    orig_db_size: u64,                        // db_size before the current change
+    ckpt_size: u64,                           // size of database at ckpt_begine()
+    ckpt_j_size: u64,                         // size of journal at ckpt_begine()
     n_extra: u64, // add this many bytes to each in-memory page, the user extra data size
     n_page: u32,  // total number of in-memory pages
     n_ref: u32,   // number of in-memory page with PgHdr.n_ref > 0
@@ -52,7 +73,7 @@ struct Pager {
     p_first: Option<Arc<PgHdr>>, // list of free page
     p_last: Option<Arc<PgHdr>>, // list of free page
     p_all: Option<Arc<PgHdr>>, // list of all pages
-    a_hash: Arc<HashMap<u32, Arc<PgHdr>>>, // hash table to map page number of PgHdr
+    a_hash: HashMap<u32, Rc<RefCell<PgHdr>>>, // hash table to map page number of PgHdr
 }
 
 struct PgHdr {
@@ -90,6 +111,7 @@ impl Pager {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(fd_path)?;
         let jfd = OpenOptions::new()
             .read(true)
@@ -97,8 +119,8 @@ impl Pager {
             .create(true)
             .open(jfd_path)?;
         Ok(Pager {
-            fd: RwLock::new(fd),
-            jfd,
+            fd: Mutex::new(fd),
+            jfd: Mutex::new(jfd),
             cpfd: None,
             db_size: -1,
             orig_db_size: 0,
@@ -123,18 +145,86 @@ impl Pager {
             p_first: None,
             p_last: None,
             p_all: None,
-            a_hash: Arc::new(HashMap::new()),
+            a_hash: HashMap::new(),
         })
     }
 
+    /// recycle an older page
+    pub fn recycle(&mut self) -> Result<()> {
+        todo!()
+    }
+
     /// try to get PgHdr with Pgno, if it was miss in cache, returned None
-    pub fn lookup(&mut self, pgno: Pgno) -> Result<Option<PgHdr>> {
+    pub fn lookup(&self, _pgno: Pgno) -> Result<Option<PgHdr>> {
         todo!()
     }
 
     /// read journal and play load it
     fn playback_journal(&mut self) -> Result<()> {
-        todo!()
+        let mut jfd = self.jfd.lock()?;
+        let journal_len = jfd.metadata()?.len();
+        if journal_len == 0 {
+            return Ok(());
+        }
+        self.journal_open = true;
+        jfd.seek(SeekFrom::Start(0))?;
+        // recoreds number
+        let mut n_rec = (journal_len as usize - (JOURNAL_MAGIC.len() + size_of::<Pgno>()))
+            / size_of::<PageRecord>();
+        if n_rec <= 0 {
+            return Err(Error::Value(format!(
+                "journal file error, size {}",
+                journal_len
+            )));
+        }
+
+        let mut magic_num = [0u8; 8];
+        jfd.read_exact(&mut magic_num)?;
+        if !magic_num.eq(&JOURNAL_MAGIC) {
+            return Err(Error::Value(format!(
+                "journal file error, size {}",
+                journal_len
+            )));
+        }
+        let mut mx_page_bytes = [0u8; size_of::<Pgno>()];
+        jfd.read_exact(&mut mx_page_bytes)?;
+        let mx_page = Pgno::from_be_bytes(mx_page_bytes);
+
+        let mut fd = self.fd.lock()?;
+        fd.set_len(mx_page as u64 * PAGE_SIZE as u64)?;
+        self.db_size = mx_page as i32;
+
+        let mut pg_record_bytes = [0u8; size_of::<PageRecord>()];
+        fd.seek(SeekFrom::End(0))?;
+        let mut fd_writer = BufWriter::new(&mut *fd);
+        loop {
+            if n_rec <= 0 {
+                break;
+            }
+
+            // read
+            jfd.read_exact(&mut pg_record_bytes)?;
+
+            let ptr: *const u8 = pg_record_bytes.as_ptr();
+            let pr = unsafe {
+                ptr.cast::<PageRecord>()
+                    .as_ref()
+                    .ok_or(Error::Internal("read journal fail".into()))?
+            }
+            .clone();
+
+            if let Some(_p_pg) = self.lookup(pr.pgno)? {
+                // what should i do?
+            }
+
+            fd_writer.write_all(&pr.data)?;
+            fd_writer.flush()?;
+            pg_record_bytes.fill(0);
+
+            n_rec -= 1;
+        }
+
+        Ok(())
     }
 }
 
@@ -166,7 +256,7 @@ impl PagerManager {
     }
 
     /// try to get PgHdr with Pgno, if it was miss in cache, we should create it
-    pub fn get(&mut self, pgno: Pgno) -> Result<PgHdr> {
+    pub fn get(&mut self, pgno: Pgno) -> Result<Rc<RefCell<PgHdr>>> {
         let mut pager = self.pager.as_ref().borrow_mut();
         let mut p_pg = None;
         if pager.n_ref == 0 {
@@ -179,12 +269,27 @@ impl PagerManager {
 
         if p_pg.is_none() {
             pager.n_miss += 1;
+            if pager.n_page >= pager.mx_page {
+                pager.recycle()?;
+                pager.n_ovfl += 1;
+            }
             p_pg = Some(PgHdr::new(Rc::clone(&self.pager), pgno)?);
             pager.n_page += 1;
         } else {
             pager.n_hit += 1;
         }
 
-        todo!()
+        let p = p_pg.ok_or(Error::Value(format!("can not found pgno {}", pgno)))?;
+        let pg_hdr = Rc::new(RefCell::new(p));
+
+        let hash_key = pager_hash(pgno);
+        pager.a_hash.insert(hash_key, Rc::clone(&pg_hdr));
+
+        Ok(pg_hdr)
     }
+}
+
+#[inline]
+fn pager_hash(pn: u32) -> u32 {
+    pn % N_PG_HASH
 }
