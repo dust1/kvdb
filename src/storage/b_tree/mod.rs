@@ -1,4 +1,4 @@
 mod memory;
-mod pager;
+pub mod pager;
 
 pub use memory::Memory;
