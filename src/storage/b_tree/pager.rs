@@ -13,7 +13,7 @@ use std::mem::size_of;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::Arc;
+
 use std::sync::Mutex;
 
 use derivative::Derivative;
@@ -50,13 +50,13 @@ pub struct PagerManager {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Pager {
-    fd: Mutex<File>,                   // file descriptor for database
-    jfd: Mutex<File>,                  // file descriptor for journal
-    cpfd: Option<File>,                // file descriptor for checkpoint journal
-    db_size: i32,                      // number of pages in the database filename
-    orig_db_size: u64,                 // db_size before the current change
-    ckpt_size: u64,                    // size of database at ckpt_begine()
-    ckpt_j_size: u64,                  // size of journal at ckpt_begine()
+    fd: Mutex<File>,                     // file descriptor for database
+    jfd: Mutex<File>,                    // file descriptor for journal
+    cpfd: Option<File>,                  // file descriptor for checkpoint journal
+    db_size: i32,                        // number of pages in the database filename
+    orig_db_size: u64,                   // db_size before the current change
+    ckpt_size: u64,                      // size of database at ckpt_begine()
+    ckpt_j_size: u64,                    // size of journal at ckpt_begine()
     n_extra: u64, // add this many bytes to each in-memory page, the user extra data size
     n_page: u32,  // total number of in-memory pages
     n_ref: u32,   // number of in-memory page with PgHdr.n_ref > 0
@@ -83,19 +83,19 @@ pub struct Pager {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct PgHdr {
-    pager: Rc<RefCell<Pager>>,              // the pager
-    pgno: Pgno,                             // the page number of this page
-    p_next_hash: Option<Arc<PgHdr>>,        // hash collection chain for PgHdr.pgno
-    p_prev_hash: Option<Arc<PgHdr>>,        // hash collection chain for PgHdr.pgno
-    n_ref: u32,                             // number of users of this page
-    p_next_free: Option<Rc<RefCell<PgHdr>>>,        // freelist of pages where n_ref == 0
-    p_prev_free: Option<Rc<RefCell<PgHdr>>>,        // freelist of pages where n_ref == 0
-    p_next_all: Option<Rc<RefCell<PgHdr>>>, // a list of all pages
-    p_prev_all: Option<Rc<RefCell<PgHdr>>>, // a list of all pages
-    in_journal: bool,                       // true if has been written to journal
-    in_ckpt: bool,                          // true if has been written to the checkpoint journal
-    dirty: bool,                            // true if we need write back change
-                                            // PAGE_SIZE bytes of page data follow this header
+    pager: Rc<RefCell<Pager>>,               // the pager
+    pgno: Pgno,                              // the page number of this page
+    p_next_hash: Option<Rc<RefCell<PgHdr>>>, // hash collection chain for PgHdr.pgno
+    p_prev_hash: Option<Rc<RefCell<PgHdr>>>, // hash collection chain for PgHdr.pgno
+    n_ref: u32,                              // number of users of this page
+    p_next_free: Option<Rc<RefCell<PgHdr>>>, // freelist of pages where n_ref == 0
+    p_prev_free: Option<Rc<RefCell<PgHdr>>>, // freelist of pages where n_ref == 0
+    p_next_all: Option<Rc<RefCell<PgHdr>>>,  // a list of all pages
+    p_prev_all: Option<Rc<RefCell<PgHdr>>>,  // a list of all pages
+    in_journal: bool,                        // true if has been written to journal
+    in_ckpt: bool,                           // true if has been written to the checkpoint journal
+    dirty: bool,                             // true if we need write back change
+                                             // PAGE_SIZE bytes of page data follow this header
 }
 
 impl Pager {
@@ -155,8 +155,42 @@ impl Pager {
         })
     }
 
-    /// recycle an older page
-    pub fn recycle(&mut self) -> Result<()> {
+    /// recycle an older page.
+    /// return the free page
+    pub fn recycle(&mut self) -> Result<Rc<RefCell<PgHdr>>> {
+        let mut p_pg = self.p_first.as_ref().map(|p| Rc::clone(p));
+
+        // get free page that have not been used
+        while let Some(free_node) = &p_pg {
+            let free_node = Rc::clone(free_node);
+            let node = free_node.as_ref().borrow();
+            if node.dirty {
+                if let Some(next_free) = node.p_next_free.as_ref() {
+                    p_pg = Some(Rc::clone(next_free));
+                }
+            } else {
+                break;
+            }
+        }
+
+        if p_pg.is_none() {
+            self.sync_all_pages()?;
+            p_pg = self.p_first.as_ref().map(|p| Rc::clone(p));
+        }
+
+        let pg_rc = p_pg.ok_or(Error::Value("recyle older page fail".into()))?;
+        let mut pg_hdr = pg_rc.as_ref().borrow_mut();
+        if pg_hdr.n_ref != 0 || pg_hdr.dirty {
+            return Err(Error::Value("recyle order page fail, no free page".into()));
+        }
+        pg_hdr.remove_freelist()?;
+        pg_hdr.remove_hashlist()?;
+
+        Ok(Rc::clone(&pg_rc))
+    }
+
+    /// sync the journal and then write all free dirty pages to the database file.
+    fn sync_all_pages(&mut self) -> Result<()> {
         todo!()
     }
 
@@ -255,6 +289,79 @@ impl PgHdr {
             dirty: false,
         })
     }
+
+    /// remove the node from freelist
+    pub fn remove_freelist(&mut self) -> Result<()> {
+        if let Some(p_prev_free) = &self.p_prev_free {
+            let prev_free = Rc::clone(p_prev_free);
+            let mut free_node = prev_free.as_ref().borrow_mut();
+
+            free_node.p_next_free = self.p_next_free.as_ref().map(|p| Rc::clone(p));
+        } else {
+            let mut pager = self.pager.as_ref().borrow_mut();
+            pager.p_first = self.p_next_free.as_ref().map(|p| Rc::clone(p));
+        }
+
+        if let Some(p_next_free) = &self.p_next_free {
+            let next_free = Rc::clone(p_next_free);
+            let mut next_node = next_free.as_ref().borrow_mut();
+
+            next_node.p_prev_free = self.p_prev_free.as_ref().map(|p| Rc::clone(p));
+        } else {
+            let mut pager = self.pager.as_ref().borrow_mut();
+            pager.p_last = self.p_prev_free.as_ref().map(|p| Rc::clone(p));
+        }
+        self.p_next_free = None;
+        self.p_prev_free = None;
+
+        Ok(())
+    }
+
+    /// remove the node from hashlist
+    pub fn remove_hashlist(&mut self) -> Result<()> {
+        if let Some(p_next_hash) = &self.p_next_hash {
+            let next_hash = Rc::clone(p_next_hash);
+            let mut next_node = next_hash.as_ref().borrow_mut();
+
+            next_node.p_prev_free = self.p_prev_hash.as_ref().map(|p| Rc::clone(p));
+        }
+
+        if let Some(p_prev_hash) = &self.p_prev_hash {
+            let prev_hash = Rc::clone(p_prev_hash);
+            let mut prev_node = prev_hash.as_ref().borrow_mut();
+
+            prev_node.p_next_hash = self.p_next_hash.as_ref().map(|p| Rc::clone(p));
+        } else {
+            let mut pager = self.pager.as_ref().borrow_mut();
+            let hash_key = pager_hash(self.pgno);
+            // FIXME assert_eq!(pager.a_hash.get(hash_key), self);
+            if let Some(p_next_hash) = &self.p_next_hash {
+                pager.a_hash.insert(hash_key, Rc::clone(p_next_hash));
+            } else {
+                pager.a_hash.remove(&hash_key);
+            }
+        }
+
+        self.p_next_hash = None;
+        self.p_prev_hash = None;
+
+        Ok(())
+    }
+
+    /// increment the ref count for a page.
+    /// if the page is currently on the freelist (the n_ref is zero) then
+    /// remove it
+    pub fn page_ref(&mut self) -> Result<()> {
+        if self.n_ref == 0 {
+            self.remove_freelist()?;
+
+            let mut pager = self.pager.as_ref().borrow_mut();
+            // pager add a new page
+            pager.n_ref += 1;
+        }
+        self.n_ref += 1;
+        Ok(())
+    }
 }
 
 impl PagerManager {
@@ -278,80 +385,37 @@ impl PagerManager {
         }
 
         if let Some(p_pg) = &p_pg {
-            page_ref(Rc::clone(p_pg))?;
+            let mut pg_hdr = p_pg.as_ref().borrow_mut();
+            pg_hdr.page_ref()?;
             pager.n_hit += 1;
         } else {
             // cache miss
             pager.n_miss += 1;
             if pager.n_page >= pager.mx_page {
-                pager.recycle()?;
+                // remove older page
+                p_pg = Some(pager.recycle()?);
                 pager.n_ovfl += 1;
+            } else {
+                // create a new page
+                let pg_hdr = Rc::new(RefCell::new(PgHdr::new(Rc::clone(&self.pager), pgno)?));
+                p_pg = Some(Rc::clone(&pg_hdr));
+
+                // put it in the head node of of p_all
+                let mut p_hdr = pg_hdr.as_ref().borrow_mut();
+                if let Some(p_all) = &pager.p_all {
+                    p_hdr.p_next_all = Some(Rc::clone(p_all));
+
+                    let mut all = p_all.as_ref().borrow_mut();
+                    all.p_prev_all = Some(Rc::clone(&pg_hdr));
+                }
+                pager.p_all = Some(Rc::clone(&pg_hdr));
+
+                pager.n_page += 1;
             }
-
-            // create a new page and put it in the head node of of p_all
-            let pg_hdr = Rc::new(RefCell::new(PgHdr::new(Rc::clone(&self.pager), pgno)?));
-
-            let mut p_hdr = pg_hdr.as_ref().borrow_mut();
-            if let Some(p_all) = &pager.p_all {
-                p_hdr.p_next_all = Some(Rc::clone(p_all));
-
-                let mut all = p_all.as_ref().borrow_mut();
-                all.p_prev_all = Some(Rc::clone(&pg_hdr));
-            }
-            pager.p_all = Some(Rc::clone(&pg_hdr));
-
-            pager.n_page += 1;
         }
 
         p_pg.ok_or(Error::Value(format!("can not get pgno {}", pgno)))
     }
-
-
-}
-
-/// increment the ref count for a page.
-/// if the page is currently on the freelist (the n_ref is zero) then
-/// remove it
-fn page_ref(pg_hdr: Rc<RefCell<PgHdr>>) -> Result<()> {
-    let mut pg_hdr = pg_hdr.as_ref().borrow_mut();
-    if pg_hdr.n_ref == 0 {
-        if let Some(p_prev_free) = &pg_hdr.p_prev_free {
-            let mut p_prev_free = p_prev_free.as_ref().borrow_mut();
-            if let Some(p_next_free) = &pg_hdr.p_next_free {
-                p_prev_free.p_next_free = Some(Rc::clone(p_next_free));
-            } else {
-                p_prev_free.p_next_free = None;
-            }
-        } else {
-            let mut pager = pg_hdr.pager.as_ref().borrow_mut();
-            if let Some(p_next_free) = &pg_hdr.p_next_free {
-                pager.p_first = Some(Rc::clone(p_next_free));
-            } else {
-                pager.p_first = None;
-            }
-        }
-
-        if let Some(p_next_free) = &pg_hdr.p_next_free {
-            let mut p_next_free = p_next_free.as_ref().borrow_mut();
-            if let Some(p_prev_free) = &pg_hdr.p_prev_free {
-                p_next_free.p_prev_free = Some(Rc::clone(p_prev_free));
-            } else {
-                p_next_free.p_prev_free = None;
-            }
-        } else {
-            let mut pager = pg_hdr.pager.as_ref().borrow_mut();
-            if let Some(p_prev_free) = &pg_hdr.p_prev_free {
-                pager.p_last = Some(Rc::clone(p_prev_free));
-            } else {
-                pager.p_last = None;
-            }
-        }
-
-        let mut pager = pg_hdr.pager.as_ref().borrow_mut();
-        pager.n_ref += 1;
-    }
-    pg_hdr.n_ref += 1;
-    Ok(())
 }
 
 #[inline]
