@@ -25,14 +25,14 @@ impl AnalyzerStatement for KVDeleteStatement {
         let filter = self
             .selection
             .as_ref()
-            .map(|expr| Expression::from_expr(&expr, &mut scope))
+            .map(|expr| Expression::from_expr(expr, &mut scope))
             .transpose()?;
 
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::Delete(
             DeletePlan {
                 table_name: table_name.clone(),
                 source: Box::new(PlanNode::Scan(ScanPlan {
-                    table_name: table_name.clone(),
+                    table_name,
                     alias: None,
                     filter,
                 })),

@@ -86,7 +86,7 @@ impl KVSQL {
             match self.execute(&input).await {
                 Ok(()) => {}
                 error @ Err(kvdb::error::Error::Internal(_)) => return error,
-                Err(err) => println!("Error: {}", err.to_string()),
+                Err(err) => println!("Error: {}", err),
             }
         }
 
@@ -99,7 +99,7 @@ impl KVSQL {
 
     /// execute command
     async fn execute(&mut self, command: &str) -> Result<()> {
-        if command.starts_with("!") {
+        if command.starts_with('!') {
             self.execute_command(command).await
         } else {
             self.execute_query(command).await

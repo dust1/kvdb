@@ -317,10 +317,11 @@ impl MVCCTransaction {
 impl TransactionMode {
     /// check whether the transaction mode can mutate data.
     pub fn mutable(&self) -> bool {
-        match self {
-            TransactionMode::ReadWrite => true,
-            _ => false,
-        }
+        matches!(self, TransactionMode::ReadWrite)
+        // match self {
+        //     TransactionMode::ReadWrite => true,
+        //     _ => false,
+        // }
     }
 
     /// check whether a mode satisfies a mode (i.e. ReadWrite satisfies ReadOnly)

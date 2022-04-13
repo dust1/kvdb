@@ -253,7 +253,7 @@ impl Expression {
                 }
             },
             Self::LessThan(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
-                (Boolean(lhs), Boolean(rhs)) => Boolean(lhs < rhs),
+                (Boolean(lhs), Boolean(rhs)) => Boolean(!lhs & rhs),
                 (Integer(lhs), Integer(rhs)) => Boolean(lhs < rhs),
                 (Integer(lhs), Float(rhs)) => Boolean((lhs as f64) < rhs),
                 (Float(lhs), Integer(rhs)) => Boolean(lhs < (rhs as f64)),
@@ -268,7 +268,7 @@ impl Expression {
                 }
             },
             Self::GreaterThan(lhs, rhs) => match (lhs.evaluate(row)?, rhs.evaluate(row)?) {
-                (Boolean(lhs), Boolean(rhs)) => Boolean(lhs > rhs),
+                (Boolean(lhs), Boolean(rhs)) => Boolean(lhs & !rhs),
                 (Integer(lhs), Integer(rhs)) => Boolean(lhs > rhs),
                 (Integer(lhs), Float(rhs)) => Boolean((lhs as f64) > rhs),
                 (Float(lhs), Integer(rhs)) => Boolean(lhs > (rhs as f64)),
@@ -407,9 +407,9 @@ impl Expression {
                     Regex::new(&format!(
                         "^{}$",
                         regex::escape(&rhs)
-                            .replace("%", ".*")
+                            .replace('%', ".*")
                             .replace(".*.*", "%")
-                            .replace("_", ".")
+                            .replace('_', ".")
                             .replace("..", "_")
                     ))?
                     .is_match(&lhs),

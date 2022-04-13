@@ -28,14 +28,14 @@ impl AnalyzerStatement for KVUpdateStatement {
         let filter = self
             .selection
             .as_ref()
-            .map(|expr| Expression::from_expr(&expr, &mut scope))
+            .map(|expr| Expression::from_expr(expr, &mut scope))
             .transpose()?;
 
         Ok(AnalyzerResult::SimpleQuery(Box::new(PlanNode::Update(
             UpdatePlan {
                 table_name: table_name.clone(),
                 source: Box::new(PlanNode::Scan(ScanPlan {
-                    table_name: table_name.clone(),
+                    table_name,
                     alias: None,
                     filter,
                 })),
@@ -53,7 +53,7 @@ impl KVUpdateStatement {
         scope: &mut Scope,
     ) -> Result<Vec<(usize, Option<String>, Expression)>> {
         Ok(assignments
-            .into_iter()
+            .iter()
             .map(|issignment| {
                 let field = issignment.id.to_string();
                 Ok((
