@@ -24,10 +24,7 @@ impl std::cmp::Eq for DataValue {}
 impl std::cmp::PartialEq for DataValue {
     fn eq(&self, other: &DataValue) -> bool {
         match self {
-            DataValue::Null => match other {
-                DataValue::Null => true,
-                _ => false,
-            },
+            DataValue::Null => matches!(other, DataValue::Null),
             DataValue::Boolean(l) => match other {
                 DataValue::Boolean(r) => l == r,
                 _ => false,

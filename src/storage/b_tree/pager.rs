@@ -13,7 +13,6 @@ use std::mem::size_of;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
-
 use std::sync::Mutex;
 
 use derivative::Derivative;
@@ -108,7 +107,7 @@ impl Pager {
             jfd_path = p
                 .as_ref()
                 .parent()
-                .ok_or(Error::Internal("db_path parent unexception".into()))?
+                .ok_or_else(|| Error::Internal("db_path parent unexception".into()))?
                 .join("kvdb_journal");
             fd_path = PathBuf::from(p.as_ref());
         }
@@ -158,7 +157,7 @@ impl Pager {
     /// recycle an older page.
     /// return the free page
     pub fn recycle(&mut self) -> Result<Rc<RefCell<PgHdr>>> {
-        let mut p_pg = self.p_first.as_ref().map(|p| Rc::clone(p));
+        let mut p_pg = self.p_first.as_ref().map(Rc::clone);
 
         // get free page that have not been used
         while let Some(free_node) = &p_pg {
@@ -174,11 +173,12 @@ impl Pager {
         }
 
         if p_pg.is_none() {
+            // there is no unmodified pages in the freelist
             self.sync_all_pages()?;
-            p_pg = self.p_first.as_ref().map(|p| Rc::clone(p));
+            p_pg = self.p_first.as_ref().map(Rc::clone);
         }
 
-        let pg_rc = p_pg.ok_or(Error::Value("recyle older page fail".into()))?;
+        let pg_rc = p_pg.ok_or_else(|| Error::Value("recyle older page fail".into()))?;
         let mut pg_hdr = pg_rc.as_ref().borrow_mut();
         if pg_hdr.n_ref != 0 || pg_hdr.dirty {
             return Err(Error::Value("recyle order page fail, no free page".into()));
@@ -191,8 +191,34 @@ impl Pager {
 
     /// sync the journal and then write all free dirty pages to the database file.
     fn sync_all_pages(&mut self) -> Result<()> {
-        // 20220413
-        todo!()
+        if self.need_sync {
+            if !self.temp_file {
+                let jfd = self.jfd.lock()?;
+                jfd.sync_all()?;
+            }
+            self.need_sync = false;
+        }
+
+        let mut free_node = self.p_first.as_ref().map(Rc::clone);
+        let mut fd = self.fd.lock()?;
+        while let Some(node) = &free_node {
+            let node = Rc::clone(node);
+            let mut pg_hdr = node.as_ref().borrow_mut();
+            if pg_hdr.dirty {
+                fd.seek(SeekFrom::Start((pg_hdr.pgno - 1) as u64 * PAGE_SIZE as u64))?;
+                let mut writer = BufWriter::new(&mut *fd);
+                let ptr = node.as_ptr().cast::<[u8; PAGE_SIZE]>();
+                let ref_pg_hdr = unsafe {
+                    ptr.as_ref()
+                        .ok_or_else(|| Error::Value("Page sync fail".into()))?
+                };
+                writer.write_all(ref_pg_hdr)?;
+                pg_hdr.dirty = false;
+            }
+            free_node = pg_hdr.p_next_free.as_ref().map(Rc::clone);
+        }
+
+        Ok(())
     }
 
     /// try to get PgHdr with Pgno, if it was miss in cache, returned None
@@ -216,7 +242,7 @@ impl Pager {
         // recoreds number
         let mut n_rec = (journal_len as usize - (JOURNAL_MAGIC.len() + size_of::<Pgno>()))
             / size_of::<PageRecord>();
-        if n_rec <= 0 {
+        if n_rec == 0 {
             return Err(Error::Value(format!(
                 "journal file error, size {}",
                 journal_len
@@ -243,7 +269,7 @@ impl Pager {
         fd.seek(SeekFrom::End(0))?;
         let mut fd_writer = BufWriter::new(&mut *fd);
         loop {
-            if n_rec <= 0 {
+            if n_rec == 0 {
                 break;
             }
 
@@ -254,7 +280,7 @@ impl Pager {
             let pr = unsafe {
                 ptr.cast::<PageRecord>()
                     .as_ref()
-                    .ok_or(Error::Internal("read journal fail".into()))?
+                    .ok_or_else(|| Error::Internal("read journal fail".into()))?
             }
             .clone();
 
@@ -297,20 +323,20 @@ impl PgHdr {
             let prev_free = Rc::clone(p_prev_free);
             let mut free_node = prev_free.as_ref().borrow_mut();
 
-            free_node.p_next_free = self.p_next_free.as_ref().map(|p| Rc::clone(p));
+            free_node.p_next_free = self.p_next_free.as_ref().map(Rc::clone);
         } else {
             let mut pager = self.pager.as_ref().borrow_mut();
-            pager.p_first = self.p_next_free.as_ref().map(|p| Rc::clone(p));
+            pager.p_first = self.p_next_free.as_ref().map(Rc::clone);
         }
 
         if let Some(p_next_free) = &self.p_next_free {
             let next_free = Rc::clone(p_next_free);
             let mut next_node = next_free.as_ref().borrow_mut();
 
-            next_node.p_prev_free = self.p_prev_free.as_ref().map(|p| Rc::clone(p));
+            next_node.p_prev_free = self.p_prev_free.as_ref().map(Rc::clone);
         } else {
             let mut pager = self.pager.as_ref().borrow_mut();
-            pager.p_last = self.p_prev_free.as_ref().map(|p| Rc::clone(p));
+            pager.p_last = self.p_prev_free.as_ref().map(Rc::clone);
         }
         self.p_next_free = None;
         self.p_prev_free = None;
@@ -324,14 +350,14 @@ impl PgHdr {
             let next_hash = Rc::clone(p_next_hash);
             let mut next_node = next_hash.as_ref().borrow_mut();
 
-            next_node.p_prev_free = self.p_prev_hash.as_ref().map(|p| Rc::clone(p));
+            next_node.p_prev_free = self.p_prev_hash.as_ref().map(Rc::clone);
         }
 
         if let Some(p_prev_hash) = &self.p_prev_hash {
             let prev_hash = Rc::clone(p_prev_hash);
             let mut prev_node = prev_hash.as_ref().borrow_mut();
 
-            prev_node.p_next_hash = self.p_next_hash.as_ref().map(|p| Rc::clone(p));
+            prev_node.p_next_hash = self.p_next_hash.as_ref().map(Rc::clone);
         } else {
             let mut pager = self.pager.as_ref().borrow_mut();
             let hash_key = pager_hash(self.pgno);
@@ -415,7 +441,7 @@ impl PagerManager {
             }
         }
 
-        p_pg.ok_or(Error::Value(format!("can not get pgno {}", pgno)))
+        p_pg.ok_or_else(|| Error::Value(format!("can not get pgno {}", pgno)))
     }
 }
 

@@ -43,7 +43,7 @@ impl InsertExec {
         let mut insert = HashMap::new();
         // iterator column and value with insert
         for (column, value) in insert_columns.iter().zip(rows_data.into_iter()) {
-            table.get_column(&column)?;
+            table.get_column(column)?;
             if insert.insert(column.clone(), value).is_some() {
                 // column was inserted
                 return Err(Error::Value(format!(
