@@ -28,6 +28,12 @@ const PAGE_SIZE: usize = 1024;
 
 const JOURNAL_MAGIC: [u8; 8] = [0xca, 0xfe, 0xba, 0xbe, 0xa1, 0xb2, 0xc3, 0xd4];
 
+/**
+ * there is a bits that can be set in Pager.err_mask
+ */
+/// a write() failed
+const PAGER_ERR_FULL: u8 = 0x01;
+
 /// page record in jrounal
 #[derive(Clone)]
 struct PageRecord {
@@ -408,6 +414,25 @@ impl PagerManager {
         let pager = Pager::open(db_path, mx_page, n_extra)?;
         Ok(Self {
             pager: Rc::new(RefCell::new(pager)),
+        })
+    }
+
+    pub fn lookup(&self, pgno: Pgno) -> Result<Option<Rc<RefCell<PgHdr>>>> {
+        if pgno == 0 {
+            return Ok(None);
+        }
+        let pager = self.pager.as_ref().borrow();
+        if (pager.err_mask & !PAGER_ERR_FULL) == 1 || pager.n_ref == 0 {
+            return Ok(None);
+        }
+
+        Ok(match pager.lookup(pgno)? {
+            Some(pg) => {
+                let mut pg_hdr = pg.as_ref().borrow_mut();
+                pg_hdr.page_ref()?;
+                Some(Rc::clone(&pg))
+            }, 
+            None => None
         })
     }
 
