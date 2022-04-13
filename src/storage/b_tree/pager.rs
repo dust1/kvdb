@@ -191,6 +191,7 @@ impl Pager {
 
     /// sync the journal and then write all free dirty pages to the database file.
     fn sync_all_pages(&mut self) -> Result<()> {
+        // 20220413
         todo!()
     }
 
