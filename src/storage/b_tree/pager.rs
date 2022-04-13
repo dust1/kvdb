@@ -222,8 +222,20 @@ impl Pager {
     }
 
     /// try to get PgHdr with Pgno, if it was miss in cache, returned None
-    pub fn lookup(&self, _pgno: Pgno) -> Result<Option<Rc<RefCell<PgHdr>>>> {
-        todo!()
+    pub fn lookup(&self, pgno: Pgno) -> Result<Option<Rc<RefCell<PgHdr>>>> {
+        if let Some(pg_hdr) = self.a_hash.get(&pager_hash(pgno)) {
+            let mut pg_hdr = Some(Rc::clone(pg_hdr));
+            while let Some(p) = pg_hdr.as_ref() {
+                let p = Rc::clone(p);
+                let pghdr = p.as_ref().borrow_mut();
+                if pghdr.pgno == pgno {
+                    break;
+                }
+                pg_hdr = pghdr.p_next_hash.as_ref().map(Rc::clone);
+            }
+            return Ok(pg_hdr);
+        }
+        Ok(None)
     }
 
     /// playback journal
