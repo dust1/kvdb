@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::env::temp_dir;
 use std::fs::File;
 use std::fs::OpenOptions;
+
 use std::io::BufWriter;
 use std::io::Read;
 use std::io::Seek;
@@ -41,7 +42,7 @@ struct PageRecord {
     data: [u8; PAGE_SIZE],
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum PageLockState {
     UNLOCK,
     READLOCK,
@@ -62,22 +63,25 @@ pub struct Pager {
     orig_db_size: u64,                   // db_size before the current change
     ckpt_size: u64,                      // size of database at ckpt_begine()
     ckpt_j_size: u64,                    // size of journal at ckpt_begine()
-    n_extra: u64, // add this many bytes to each in-memory page, the user extra data size
-    n_page: u32,  // total number of in-memory pages
-    n_ref: u32,   // number of in-memory page with PgHdr.n_ref > 0
-    mx_page: u32, // max number of pages to hold in cache
-    n_hit: u32,   // cache hits
-    n_miss: u32,  // cache miss
-    n_ovfl: u32,  // LRU overflows
+    n_extra: usize, // add this many bytes to each in-memory page, the user extra data size
+    n_page: u32,    // total number of in-memory pages
+    n_ref: u32,     // number of in-memory page with PgHdr.n_ref > 0
+    mx_page: u32,   // max number of pages to hold in cache
+    n_hit: u32,     // cache hits
+    n_miss: u32,    // cache miss
+    n_ovfl: u32,    // LRU overflows
     journal_open: bool, // true if journal file descriptor is valid
     ckpt_open: bool, // true if the checkpoint journal is open
-    no_sync: bool, // true if write the database and flush disk
+    ckpt_in_use: bool, // true if we a in a checkpoint
+    no_sync: bool,  // true if write the database and flush disk
     stats: PageLockState, // the lock state
-    err_mask: u8, // one of several kinds of errors, error msg
+    err_mask: u8,   // one of several kinds of errors, error msg
     temp_file: bool, // true if the z_filename is a temporary file
     read_only: bool, // true if the database readonly
     need_sync: bool, // true if flush disk on the journal before write to the databse
     dirty_file: bool, // true if database file has changed in any way
+    a_in_journal: Vec<u8>, // one bit for each page in the database file
+    a_in_ckpt: Vec<u8>, // one bit for each page in the database
     p_first: Option<Rc<RefCell<PgHdr>>>, // list of free page
     p_last: Option<Rc<RefCell<PgHdr>>>, // list of free page
     p_all: Option<Rc<RefCell<PgHdr>>>, // list of all pages
@@ -100,11 +104,12 @@ pub struct PgHdr {
     in_journal: bool,                        // true if has been written to journal
     in_ckpt: bool,                           // true if has been written to the checkpoint journal
     dirty: bool,                             // true if we need write back change
-                                             // PAGE_SIZE bytes of page data follow this header
+    data: [u8; PAGE_SIZE],                   // PAGE_SIZE bytes of page data follow this header
+    n_extra: Option<Vec<u8>>,
 }
 
 impl Pager {
-    pub fn open<P: AsRef<Path>>(db_path: Option<P>, max_page: u32, n_extra: u64) -> Result<Self> {
+    pub fn open<P: AsRef<Path>>(db_path: Option<P>, max_page: u32, n_extra: usize) -> Result<Self> {
         let mut fd_path = temp_dir().join("kvdb_temp");
         let mut jfd_path = temp_dir().join("kvdb_temp_journal");
         let temp_file = db_path.is_none();
@@ -145,6 +150,7 @@ impl Pager {
             n_miss: 0,
             n_ovfl: 0,
             journal_open: true,
+            ckpt_in_use: false,
             ckpt_open: false,
             no_sync: false,
             stats: PageLockState::UNLOCK,
@@ -153,6 +159,8 @@ impl Pager {
             read_only: false,
             need_sync: false,
             dirty_file: false,
+            a_in_ckpt: Vec::new(),
+            a_in_journal: Vec::new(),
             p_first: None,
             p_last: None,
             p_all: None,
@@ -195,6 +203,20 @@ impl Pager {
         Ok(Rc::clone(&pg_rc))
     }
 
+    /// get the total number of pages in the disk file assoicated with pager
+    fn pagecount(&mut self) -> Result<()> {
+        if self.db_size >= 0 {
+            return Ok(());
+        }
+
+        let db_len = self.fd.lock()?.metadata()?.len();
+        if self.stats != PageLockState::UNLOCK {
+            self.db_size = (db_len / PAGE_SIZE as u64) as i32;
+        }
+
+        Ok(())
+    }
+
     /// sync the journal and then write all free dirty pages to the database file.
     fn sync_all_pages(&mut self) -> Result<()> {
         if self.need_sync {
@@ -213,12 +235,9 @@ impl Pager {
             if pg_hdr.dirty {
                 fd.seek(SeekFrom::Start((pg_hdr.pgno - 1) as u64 * PAGE_SIZE as u64))?;
                 let mut writer = BufWriter::new(&mut *fd);
-                let ptr = node.as_ptr().cast::<[u8; PAGE_SIZE]>();
-                let ref_pg_hdr = unsafe {
-                    ptr.as_ref()
-                        .ok_or_else(|| Error::Value("Page sync fail".into()))?
-                };
-                writer.write_all(ref_pg_hdr)?;
+
+                // just write pgHdr.data
+                writer.write_all(&pg_hdr.data)?;
                 pg_hdr.dirty = false;
             }
             free_node = pg_hdr.p_next_free.as_ref().map(Rc::clone);
@@ -251,6 +270,8 @@ impl Pager {
     /// 4. copy record.data to fd
     fn playback_journal(&mut self) -> Result<()> {
         let mut jfd = self.jfd.lock()?;
+        self.stats = PageLockState::READLOCK;
+
         let journal_len = jfd.metadata()?.len();
         if journal_len == 0 {
             return Ok(());
@@ -318,7 +339,7 @@ impl Pager {
 }
 
 impl PgHdr {
-    pub fn new(pager: Rc<RefCell<Pager>>, pgno: Pgno) -> Result<Self> {
+    pub fn new(pager: Rc<RefCell<Pager>>, pgno: Pgno, n_extra: usize) -> Result<Self> {
         Ok(Self {
             pager,
             pgno,
@@ -332,6 +353,12 @@ impl PgHdr {
             in_journal: false,
             in_ckpt: false,
             dirty: false,
+            data: [0u8; PAGE_SIZE],
+            n_extra: if n_extra == 0 {
+                Some(vec![0; n_extra])
+            } else {
+                None
+            },
         })
     }
 
@@ -393,6 +420,19 @@ impl PgHdr {
         Ok(())
     }
 
+    /// load data from fd
+    fn load_data(&mut self) -> Result<()> {
+        let pager = self.pager.as_ref().borrow_mut();
+        if pager.db_size < self.pgno as i32 {
+            return Ok(());
+        }
+
+        let mut fd = pager.fd.lock()?;
+        fd.seek(SeekFrom::Start((self.pgno - 1) as u64 * PAGE_SIZE as u64))?;
+        fd.read_exact(&mut self.data)?;
+        Ok(())
+    }
+
     /// increment the ref count for a page.
     /// if the page is currently on the freelist (the n_ref is zero) then
     /// remove it
@@ -407,10 +447,69 @@ impl PgHdr {
         self.n_ref += 1;
         Ok(())
     }
+
+    /// check pager.a_in_journal
+    pub fn page_in_journal(&mut self) -> Result<()> {
+        let pager = self.pager.as_ref().borrow_mut();
+        if !pager.a_in_journal.is_empty() && self.pgno <= pager.orig_db_size as u32 {
+            if let Some(bit_journal) = pager.a_in_journal.get((self.pgno / 8) as usize) {
+                self.in_journal = *bit_journal & (1 << (self.pgno & 7)) != 0;
+            }
+        } else {
+            self.in_journal = false;
+        }
+        Ok(())
+    }
+
+    /// check pager.a_in_ckpt
+    pub fn page_in_ckpt(&mut self) -> Result<()> {
+        let pager = self.pager.as_ref().borrow_mut();
+        if !pager.a_in_ckpt.is_empty() && self.pgno <= pager.ckpt_size as u32 {
+            if let Some(bit_ckpt) = pager.a_in_ckpt.get((self.pgno / 8) as usize) {
+                self.in_ckpt = *bit_ckpt & (1 << (self.pgno & 7)) != 0;
+            }
+        } else {
+            self.in_ckpt = false;
+        }
+        Ok(())
+    }
+
+    /// write data to page
+    pub fn write(&mut self, _data: &[u8]) -> Result<()> {
+        let mut pager = self.pager.as_ref().borrow_mut();
+        if pager.err_mask != 0 {
+            return Err(Error::Internal(
+                "write page data fail, pager had error".into(),
+            ));
+        }
+        if pager.read_only {
+            return Err(Error::Internal(
+                "write page data fail, kvdb was readonly".into(),
+            ));
+        }
+
+        self.dirty = true;
+        if self.in_journal && (self.in_ckpt || !pager.ckpt_in_use) {
+            // if this page has begin transaction.
+            // it means the page has been written to the transaction journal
+            // or the checkpoint journal or both.
+            pager.dirty_file = true;
+            return Ok(());
+        }
+
+        // if we get this far, we should begin data transaction
+        assert_ne!(
+            pager.stats,
+            PageLockState::UNLOCK,
+            "there are other threads holding page locks"
+        );
+
+        todo!()
+    }
 }
 
 impl PagerManager {
-    pub fn new(db_path: Option<&str>, mx_page: u32, n_extra: u64) -> Result<Self> {
+    pub fn new(db_path: Option<&str>, mx_page: u32, n_extra: usize) -> Result<Self> {
         let pager = Pager::open(db_path, mx_page, n_extra)?;
         Ok(Self {
             pager: Rc::new(RefCell::new(pager)),
@@ -431,8 +530,8 @@ impl PagerManager {
                 let mut pg_hdr = pg.as_ref().borrow_mut();
                 pg_hdr.page_ref()?;
                 Some(Rc::clone(&pg))
-            }, 
-            None => None
+            }
+            None => None,
         })
     }
 
@@ -455,16 +554,16 @@ impl PagerManager {
         } else {
             // cache miss
             pager.n_miss += 1;
-            if pager.n_page >= pager.mx_page {
-                // remove older page
-                p_pg = Some(pager.recycle()?);
-                pager.n_ovfl += 1;
-            } else {
+            if pager.n_page < pager.mx_page || pager.p_first.is_none() {
                 // create a new page
-                let pg_hdr = Rc::new(RefCell::new(PgHdr::new(Rc::clone(&self.pager), pgno)?));
+                let pg_hdr = Rc::new(RefCell::new(PgHdr::new(
+                    Rc::clone(&self.pager),
+                    pgno,
+                    pager.n_extra,
+                )?));
                 p_pg = Some(Rc::clone(&pg_hdr));
 
-                // put it in the head node of of p_all
+                // put it in the head node of p_all
                 let mut p_hdr = pg_hdr.as_ref().borrow_mut();
                 if let Some(p_all) = &pager.p_all {
                     p_hdr.p_next_all = Some(Rc::clone(p_all));
@@ -475,7 +574,39 @@ impl PagerManager {
                 pager.p_all = Some(Rc::clone(&pg_hdr));
 
                 pager.n_page += 1;
+            } else {
+                // remove older page
+                p_pg = Some(pager.recycle()?);
+                pager.n_ovfl += 1;
             }
+        }
+
+        if let Some(p_pg) = &p_pg {
+            let mut pg_hdr = p_pg.as_ref().borrow_mut();
+            pg_hdr.pgno = pgno;
+            pg_hdr.page_in_journal()?;
+            pg_hdr.page_in_ckpt()?;
+
+            pg_hdr.n_ref = 1;
+            pager.n_ref += 1;
+
+            // put it in the head node of p_hash
+            let hash_key = pager_hash(pg_hdr.pgno);
+            if let Some(hash_pg) = pager.a_hash.get(&hash_key) {
+                let mut next_hash = hash_pg.as_ref().borrow_mut();
+                next_hash.p_prev_hash = Some(Rc::clone(&p_pg));
+                pg_hdr.p_next_hash = Some(Rc::clone(hash_pg));
+            }
+            pager.a_hash.insert(hash_key, Rc::clone(&p_pg));
+
+            // try to get data
+            pg_hdr.load_data()?;
+        } else {
+            return Err(Error::Internal("can not find this page".into()));
+        }
+
+        if pager.db_size < 0 {
+            pager.pagecount()?;
         }
 
         p_pg.ok_or_else(|| Error::Value(format!("can not get pgno {}", pgno)))
