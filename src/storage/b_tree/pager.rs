@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::env::temp_dir;
 use std::fs::File;
 use std::fs::OpenOptions;
-
 use std::io::BufWriter;
 use std::io::Read;
 use std::io::Seek;
@@ -14,9 +13,12 @@ use std::mem::size_of;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::Mutex;
+use std::sync::Arc;
+
+use std::sync::RwLock;
 
 use derivative::Derivative;
+
 
 use crate::error::Error;
 use crate::error::Result;
@@ -56,11 +58,11 @@ pub struct PagerManager {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Pager {
-    fd: Mutex<File>,                     // file descriptor for database
-    jfd: Mutex<File>,                    // file descriptor for journal
+    fd: Arc<RwLock<File>>,               // file descriptor for database
+    jfd: Arc<RwLock<File>>,              // file descriptor for journal
     cpfd: Option<File>,                  // file descriptor for checkpoint journal
     db_size: i32,                        // number of pages in the database filename
-    orig_db_size: u64,                   // db_size before the current change
+    orig_db_size: u32,                   // db_size before the current change
     ckpt_size: u64,                      // size of database at ckpt_begine()
     ckpt_j_size: u64,                    // size of journal at ckpt_begine()
     n_extra: usize, // add this many bytes to each in-memory page, the user extra data size
@@ -135,8 +137,8 @@ impl Pager {
             .create(true)
             .open(jfd_path)?;
         Ok(Pager {
-            fd: Mutex::new(fd),
-            jfd: Mutex::new(jfd),
+            fd: Arc::new(RwLock::new(fd)),
+            jfd: Arc::new(RwLock::new(jfd)),
             cpfd: None,
             db_size: -1,
             orig_db_size: 0,
@@ -209,7 +211,7 @@ impl Pager {
             return Ok(());
         }
 
-        let db_len = self.fd.lock()?.metadata()?.len();
+        let db_len = self.fd.read()?.metadata()?.len();
         if self.stats != PageLockState::UNLOCK {
             self.db_size = (db_len / PAGE_SIZE as u64) as i32;
         }
@@ -221,14 +223,14 @@ impl Pager {
     fn sync_all_pages(&mut self) -> Result<()> {
         if self.need_sync {
             if !self.temp_file {
-                let jfd = self.jfd.lock()?;
+                let jfd = self.jfd.write()?;
                 jfd.sync_all()?;
             }
             self.need_sync = false;
         }
 
         let mut free_node = self.p_first.as_ref().map(Rc::clone);
-        let mut fd = self.fd.lock()?;
+        let mut fd = self.fd.write()?;
         while let Some(node) = &free_node {
             let node = Rc::clone(node);
             let mut pg_hdr = node.as_ref().borrow_mut();
@@ -269,7 +271,7 @@ impl Pager {
     /// 3. truncates fd file use mx_page * PAGE_SIZE
     /// 4. copy record.data to fd
     fn playback_journal(&mut self) -> Result<()> {
-        let mut jfd = self.jfd.lock()?;
+        let mut jfd = self.jfd.write()?;
         self.stats = PageLockState::READLOCK;
 
         let journal_len = jfd.metadata()?.len();
@@ -300,7 +302,7 @@ impl Pager {
         jfd.read_exact(&mut mx_page_bytes)?;
         let mx_page = Pgno::from_be_bytes(mx_page_bytes);
 
-        let mut fd = self.fd.lock()?;
+        let mut fd = self.fd.write()?;
         fd.set_len(mx_page as u64 * PAGE_SIZE as u64)?;
         self.db_size = mx_page as i32;
 
@@ -333,6 +335,45 @@ impl Pager {
 
             n_rec -= 1;
         }
+
+        Ok(())
+    }
+
+    fn begin_pghdr(&mut self, pgno: Pgno) -> Result<()> {
+        assert!(self.stats != PageLockState::UNLOCK);
+        if self.stats != PageLockState::READLOCK {
+            return Ok(());
+        }
+
+        assert!(self.a_in_journal.is_empty());
+
+        let _ = self.fd.write()?;
+
+        self.a_in_journal = vec![0u8; pgno as usize / 8 + 1];
+        self.journal_open = true;
+        self.need_sync = false;
+        self.dirty_file = false;
+        self.stats = PageLockState::WRITELOCK;
+        self.pagecount()?;
+        self.orig_db_size = self.db_size as u32;
+
+        let mut jfd = self.jfd.write()?;
+        let mut jfd_writer = BufWriter::new(&mut *jfd);
+        // write file header
+        jfd_writer.write_all(&JOURNAL_MAGIC)?;
+        // write page number before write begin
+        jfd_writer.write_all(&self.db_size.to_be_bytes())?;
+        jfd_writer.flush()?;
+
+        Ok(())
+    }
+
+    fn write_pghdr_journal(&mut self, pgno: Pgno, pg_data: &[u8]) -> Result<()> {
+        let mut jfd = self.jfd.write()?;
+        jfd.seek(SeekFrom::End(0))?;
+        jfd.write_all(&pgno.to_be_bytes())?;
+        jfd.write_all(pg_data)?;
+        jfd.flush()?;
 
         Ok(())
     }
@@ -427,7 +468,7 @@ impl PgHdr {
             return Ok(());
         }
 
-        let mut fd = pager.fd.lock()?;
+        let mut fd = pager.fd.write()?;
         fd.seek(SeekFrom::Start((self.pgno - 1) as u64 * PAGE_SIZE as u64))?;
         fd.read_exact(&mut self.data)?;
         Ok(())
@@ -474,8 +515,8 @@ impl PgHdr {
         Ok(())
     }
 
-    /// write data to page
-    pub fn write(&mut self, _data: &[u8]) -> Result<()> {
+    /// begin write data to page
+    pub fn write_begin(&mut self) -> Result<()> {
         let mut pager = self.pager.as_ref().borrow_mut();
         if pager.err_mask != 0 {
             return Err(Error::Internal(
@@ -503,8 +544,46 @@ impl PgHdr {
             PageLockState::UNLOCK,
             "there are other threads holding page locks"
         );
+        assert!(self.n_ref > 0);
+        pager.begin_pghdr(self.pgno)?;
+        pager.dirty_file = true;
+        assert!(pager.stats == PageLockState::WRITELOCK);
+        assert!(pager.journal_open);
 
-        todo!()
+        if !pager.a_in_journal.is_empty() && self.pgno <= pager.orig_db_size {
+            pager.write_pghdr_journal(self.pgno, &self.data)?;
+            assert!(!pager.a_in_journal.is_empty());
+
+            // set the bitmap corresponding to this pgno to 1
+            let bit_index = self.pgno as usize / 8;
+            let mut bit_map = match pager.a_in_journal.get(bit_index) {
+                Some(i) => *i,
+                None => 0,
+            };
+            bit_map |= 1 << (self.pgno & 7);
+            pager
+                .a_in_journal
+                .splice(bit_index..bit_index + 1, [bit_map]);
+            pager.need_sync = true;
+
+            if pager.ckpt_in_use {
+                let mut bit_map = match pager.a_in_ckpt.get(bit_index) {
+                    Some(i) => *i,
+                    None => 0,
+                };
+                bit_map |= 1 << (self.pgno & 7);
+                pager.a_in_ckpt.splice(bit_index..bit_index + 1, [bit_map]);
+            }
+        }
+
+        // FIXME if the checkpoint journal is open and page not in it
+        // TODO
+
+        if pager.db_size < self.pgno as i32 {
+            pager.db_size = self.pgno as i32;
+        }
+
+        Ok(())
     }
 }
 
