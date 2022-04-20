@@ -168,6 +168,49 @@ impl Pager {
         })
     }
 
+    /// When this routine is called, the pager has the journal file open and
+    /// a write lock on the database.  This routine releases the database
+    /// write lock and acquires a read lock in its place.  The journal file
+    /// is deleted and closed.
+    pub fn unwritelock(&mut self) -> Result<()> {
+        todo!()
+    }
+
+    /// When this routine is called, the pager has the journal file open and
+    /// a write lock on the database.  This routine releases the database
+    /// write lock and acquires a read lock in its place.  The journal file
+    /// is deleted and closed.
+    pub fn rollback(&mut self) -> Result<()> {
+        todo!()
+    }
+
+    /// commit all page
+    pub fn commit(&mut self) -> Result<()> {
+        let mut p_all_node = self.p_all.as_ref().map(Rc::clone);
+        let mut fd = self.fd.write()?;
+        while let Some(pg) = p_all_node.as_ref() {
+            let p = Rc::clone(pg);
+            let pg_hdr = p.as_ref().borrow_mut();
+            if !pg_hdr.dirty {
+                p_all_node = pg_hdr.p_next_all.as_ref().map(Rc::clone);
+                continue;
+            }
+            fd.seek(SeekFrom::Start((pg_hdr.pgno as u64 - 1) * PAGE_SIZE as u64))?;
+            fd.write_all(&pg_hdr.data)?;
+
+            p_all_node = pg_hdr.p_next_all.as_ref().map(Rc::clone);
+        }
+
+        if !self.no_sync && fd.sync_all().is_ok() {
+            drop(fd);
+            return self.rollback();
+        }
+
+        drop(fd);
+        self.unwritelock()?;
+        Ok(())
+    }
+
     /// recycle an older page.
     /// return the free page
     pub fn recycle(&mut self) -> Result<Rc<RefCell<PgHdr>>> {
@@ -527,7 +570,33 @@ impl PgHdr {
     }
 
     pub fn commit(&mut self) -> Result<()> {
-        todo!()
+        let mut pager = self.pager.as_ref().borrow_mut();
+        if pager.err_mask != 0 {
+            return Err(Error::Value(format!(
+                "db have err, err_mask:{}",
+                pager.err_mask
+            )));
+        }
+        if pager.stats != PageLockState::WRITELOCK {
+            return Err(Error::Value("commit not have write lock".into()));
+        }
+        assert!(pager.journal_open);
+        if !pager.dirty_file {
+            // no change
+            pager.unwritelock()?;
+            pager.db_size = -1;
+            return Ok(());
+        }
+
+        if pager.need_sync && !pager.fd.write()?.sync_all().is_ok() {
+            pager.rollback()?;
+            pager.db_size = -1;
+            return Ok(());
+        }
+
+        pager.commit()?;
+        pager.db_size = -1;
+        Ok(())
     }
 
     pub fn rollback(&mut self) -> Result<()> {
