@@ -14,11 +14,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
-
 use std::sync::RwLock;
 
 use derivative::Derivative;
-
 
 use crate::error::Error;
 use crate::error::Result;
@@ -515,8 +513,29 @@ impl PgHdr {
         Ok(())
     }
 
+    /// write data to this page
+    pub fn write(&mut self, data: &[u8], offset: usize) -> Result<()> {
+        if PAGE_SIZE < offset || offset + data.len() > PAGE_SIZE {
+            return Err(Error::Value("write data offset out of PAGE_SIZE".into()));
+        }
+
+        self.write_begin()?;
+        let write_splice = &mut self.data[offset..offset + data.len()];
+        write_splice.copy_from_slice(data);
+
+        Ok(())
+    }
+
+    pub fn commit(&mut self) -> Result<()> {
+        todo!()
+    }
+
+    pub fn rollback(&mut self) -> Result<()> {
+        todo!()
+    }
+
     /// begin write data to page
-    pub fn write_begin(&mut self) -> Result<()> {
+    fn write_begin(&mut self) -> Result<()> {
         let mut pager = self.pager.as_ref().borrow_mut();
         if pager.err_mask != 0 {
             return Err(Error::Internal(
