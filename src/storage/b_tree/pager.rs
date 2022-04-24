@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env::temp_dir;
+use std::fs::remove_file;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::BufWriter;
@@ -173,7 +174,51 @@ impl Pager {
     /// write lock and acquires a read lock in its place.  The journal file
     /// is deleted and closed.
     pub fn unwritelock(&mut self) -> Result<()> {
-        todo!()
+        if self.stats != PageLockState::WRITELOCK {
+            return Ok(());
+        }
+        self.ckpt_commit()?;
+        if self.ckpt_open {
+            self.cpfd = None;
+            self.ckpt_open = false;
+        }
+        // FIXME: close pager.jfd
+        self.journal_open = false;
+        // FIXME: remove_file(jfd_path)
+        let _ = self.fd.read()?;
+        self.a_in_journal = Vec::new();
+
+        let mut p_all_node = self.p_all.as_ref().map(Rc::clone);
+        while let Some(all_node) = p_all_node.as_ref() {
+            let pg_hdr_node = Rc::clone(all_node);
+            let mut pg_hdr = pg_hdr_node.as_ref().borrow_mut();
+            pg_hdr.in_journal = false;
+            pg_hdr.dirty = false;
+
+            p_all_node = pg_hdr.p_next_all.as_ref().map(Rc::clone);
+        }
+        self.stats = PageLockState::READLOCK;
+        Ok(())
+    }
+
+    /// cmmit ckpt
+    fn ckpt_commit(&mut self) -> Result<()> {
+        if self.ckpt_in_use {
+            if let Some(cpfd) = &mut self.cpfd {
+                cpfd.set_len(0)?;
+            }
+            self.ckpt_in_use = false;
+            self.a_in_ckpt = Vec::new();
+            let mut p_all_node = self.p_all.as_ref().map(Rc::clone);
+            while let Some(all_node) = p_all_node.as_ref() {
+                let pg_hdr_node = Rc::clone(all_node);
+                let mut pg_hdr = pg_hdr_node.as_ref().borrow_mut();
+                pg_hdr.in_ckpt = false;
+
+                p_all_node = pg_hdr.p_next_all.as_ref().map(Rc::clone);
+            }
+        }
+        Ok(())
     }
 
     /// When this routine is called, the pager has the journal file open and
@@ -181,7 +226,21 @@ impl Pager {
     /// write lock and acquires a read lock in its place.  The journal file
     /// is deleted and closed.
     pub fn rollback(&mut self) -> Result<()> {
-        todo!()
+        if self.err_mask != 0 && self.err_mask != PAGER_ERR_FULL {
+            if self.stats == PageLockState::WRITELOCK {
+                self.playback_journal()?;
+            }
+            return Err(Error::Value(format!(
+                "db write fail, code:{}",
+                self.err_mask
+            )));
+        }
+        if self.stats != PageLockState::WRITELOCK {
+            return Ok(());
+        }
+        self.playback_journal()?;
+        self.db_size = -1;
+        Ok(())
     }
 
     /// commit all page
@@ -600,7 +659,8 @@ impl PgHdr {
     }
 
     pub fn rollback(&mut self) -> Result<()> {
-        todo!()
+        let mut pager = self.pager.as_ref().borrow_mut();
+        pager.rollback()
     }
 
     /// begin write data to page
