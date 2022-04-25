@@ -1,5 +1,6 @@
 pub mod encoding;
 pub mod keys;
+pub mod options;
 pub mod range;
 pub mod result;
 pub mod scan;

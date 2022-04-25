@@ -2,7 +2,6 @@ use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env::temp_dir;
-use std::fs::remove_file;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::BufWriter;
