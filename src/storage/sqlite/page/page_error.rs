@@ -2,6 +2,7 @@ use crate::error::Error;
 use crate::error::Result;
 
 /// Return values for sqlite_exec()
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub(super) enum SQLExecValue {
     OK,
     ERROR,
@@ -47,7 +48,7 @@ pub(super) fn error_values(value: SQLExecValue) -> Error {
             FULL => "Insertion failed because database is full".into(),
             CANTOPEN => "Unable to open the database file".into(),
             PROTOCOL => "Database lock protocol error".into(),
-            EMPTY => "(IInternal Only) Database table is empty".into(),
+            EMPTY => "(Internal Only) Database table is empty".into(),
             SCHEMA => "The database schema changed".into(),
             TOOBIG => "Too much data for one row of a table".into(),
             CONSIRAINT => "Abort due to contraint violation".into(),

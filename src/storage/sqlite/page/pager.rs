@@ -72,7 +72,7 @@ pub struct Pager {
     // the lock state
     stats: PageLockState,
     // one of several kinds of errors, error msg
-    err_mask: u8,
+    err_mask: SQLExecValue,
     // true if the z_filename is a temporary file
     temp_file: bool,
     // true if the database readonly
@@ -99,11 +99,13 @@ pub struct Pager {
 impl Pager {
     pub fn open(option: PagerOption) -> Result<Arc<Mutex<Self>>> {
         let (z_filename, z_journal) = option.get_paths()?;
+        let fd = RwLock::new(File::create(z_filename.as_path())?);
+        let jfd = RwLock::new(File::create(z_journal.as_path())?);
         let pager = Pager {
             z_filename,
             z_journal,
-            fd: None,
-            jfd: None,
+            fd: Some(fd),
+            jfd: Some(jfd),
             cpfd: None,
             db_size: 0,
             orig_db_size: 0,
@@ -121,7 +123,7 @@ impl Pager {
             ckpt_open: false,
             no_sync: false,
             stats: PageLockState::UNLOCK,
-            err_mask: 0,
+            err_mask: SQLExecValue::OK,
             temp_file: option.is_temp(),
             read_only: option.read_only,
             need_sync: false,
@@ -142,7 +144,40 @@ impl Pager {
         if pgno == 0 {
             return Err(error_values(SQLExecValue::ERROR));
         }
+        if self.err_mask != SQLExecValue::OK {
+            return Err(error_values(self.err_mask));
+        }
 
+        if self.n_ref == 0 {
+            if self.fd.is_none() || self.jfd.is_none() {
+                return Err(error_values(SQLExecValue::ERROR));
+            }
+            let fd = self.fd.as_ref().unwrap();
+            let read_lock = match fd.read() {
+                Err(_) => return Err(error_values(SQLExecValue::BUSY)),
+                Ok(rl) => {
+                    self.stats = PageLockState::READLOCK;
+                    rl
+                }
+            };
+
+            if self.z_journal.exists() {
+                let write_lock = match fd.write() {
+                    Err(_) => {
+                        drop(read_lock);
+                        return Err(error_values(SQLExecValue::BUSY));
+                    }
+                    Ok(wl) => {
+                        self.stats = PageLockState::WRITELOCK;
+                        wl
+                    }
+                };
+            }
+        }
+        todo!()
+    }
+
+    fn playback_journal(&mut self) -> Result<()> {
         todo!()
     }
 }
