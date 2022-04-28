@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::error::Result;
+
 
 /// Return values for sqlite_exec()
 #[derive(PartialEq, Clone, Copy, Debug)]

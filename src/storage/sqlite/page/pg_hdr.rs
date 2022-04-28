@@ -5,6 +5,7 @@ use futures::lock::Mutex;
 
 use super::pager::PAGE_SIZE;
 use super::Pager;
+use crate::error::Result;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -24,4 +25,11 @@ pub struct PgHdr {
     dirty: bool,                            // true if we need write back change
     data: [u8; PAGE_SIZE],                  // PAGE_SIZE bytes of page data follow this header
     n_extra: Option<Vec<u8>>,
+}
+
+impl PgHdr {
+    pub fn set_data(&mut self, data: &[u8]) -> Result<()> {
+        self.data.copy_from_slice(data);
+        Ok(())
+    }
 }
