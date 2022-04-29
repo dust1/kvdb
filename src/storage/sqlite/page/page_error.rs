@@ -1,6 +1,5 @@
 use crate::error::Error;
 
-
 /// Return values for sqlite_exec()
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub(super) enum SQLExecValue {
