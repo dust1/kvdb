@@ -26,6 +26,10 @@ use crate::error::Result;
 /// page size
 pub(super) const PAGE_SIZE: usize = 1024;
 
+/// How big to make the hash table used for locating in-memory pages
+/// by page number.
+const PG_HASH: usize = 2003;
+
 /// jfd magic number
 pub(super) const JOURNAL_MAGIC: [u8; 8] = [0xca, 0xfe, 0xba, 0xbe, 0xa1, 0xb2, 0xc3, 0xd4];
 
@@ -107,7 +111,7 @@ pub struct Pager {
 }
 
 impl Pager {
-    pub fn open(option: PagerOption) -> Result<Arc<Mutex<Self>>> {
+    pub fn open(option: PagerOption) -> Result<Self> {
         let (z_filename, z_journal) = option.get_paths()?;
         let fd = RwLock::new(File::create(z_filename.as_path())?);
         let jfd = RwLock::new(File::create(z_journal.as_path())?);
@@ -145,12 +149,24 @@ impl Pager {
             p_all: None,
             a_hash: HashMap::new(),
         };
-        Ok(Arc::new(Mutex::new(pager)))
+        Ok(pager)
+    }
+
+    pub fn add_ref(&mut self) {
+        self.n_ref += 1;
+    }
+
+    pub fn set_last(&mut self, last: Option<Arc<Mutex<PgHdr>>>) {
+        self.p_last = last;
+    }
+
+    pub fn set_first(&mut self, first: Option<Arc<Mutex<PgHdr>>>) {
+        self.p_first = first;
     }
 
     /// create page with given page numbers
     /// page numbers should be starts from one
-    pub fn get_page(&mut self, pgno: u32) -> Result<Arc<Mutex<PgHdr>>> {
+    pub fn get_page(&mut self, pgno: u32, pg_ref: Arc<Mutex<Pager>>) -> Result<Arc<Mutex<PgHdr>>> {
         if pgno == 0 {
             return Err(error_values(SQLExecValue::ERROR));
         }
@@ -158,7 +174,10 @@ impl Pager {
             return Err(error_values(self.err_mask));
         }
 
+        let mut p_pg = None;
+
         if self.n_ref == 0 {
+            // this is a new pager or not used
             let read_lock = match self.fd.read() {
                 Err(_) => return Err(error_values(SQLExecValue::BUSY)),
                 Ok(rl) => {
@@ -167,14 +186,13 @@ impl Pager {
                 }
             };
 
-            if self.z_journal.exists() {
+            if self.z_journal.exists() && read_lock.metadata()?.len() > 0 {
+                drop(read_lock);
                 let mut write_fd = match self.fd.write() {
                     Err(_) => {
-                        drop(read_lock);
                         return Err(error_values(SQLExecValue::BUSY));
                     }
                     Ok(wl) => {
-                        drop(read_lock);
                         self.stats = PageLockState::WRITELOCK;
                         wl
                     }
@@ -185,12 +203,211 @@ impl Pager {
                 self.db_size = db_size;
                 drop(write_fd);
             }
+        } else {
+            p_pg = self.lookup(pgno)?;
         }
+
+        if let Some(p_pg) = p_pg.as_ref() {
+            let mut pg = p_pg.lock()?;
+            pg.page_ref()?;
+        } else {
+            // cache miss
+            self.n_miss += 1;
+            if self.n_page < self.mx_page || self.p_first.is_none() {
+                // create a new page
+                let pg_hdr = match PgHdr::new(pg_ref, pgno) {
+                    Ok(p) => p,
+                    Err(_) => {
+                        self.unwritelock()?;
+                        self.err_mask = SQLExecValue::NOMEM;
+                        return Err(error_values(SQLExecValue::BUSY));
+                    }
+                };
+                let pg_arc = Arc::new(Mutex::new(pg_hdr));
+
+                // put it in the head node of p_all
+                let p_pg_ref = Arc::clone(&pg_arc);
+                p_pg = Some(Arc::clone(&pg_arc));
+
+                let mut p_hdr = p_pg_ref.as_ref().lock()?;
+                if let Some(p_all) = self.p_all.as_ref() {
+                    // if has other pgHdr
+                    p_hdr.set_next_all(Arc::clone(p_all));
+
+                    let mut prev_head = p_all.lock()?;
+                    prev_head.set_prev_all(Arc::clone(&pg_arc));
+                }
+
+                self.p_all = Some(Arc::clone(&pg_arc));
+                self.n_page += 1;
+            } else {
+                // recycle pages
+                let mut p_first = self.p_first.as_ref().map(Arc::clone);
+                while let Some(free_node) = p_first.as_ref().map(Arc::clone) {
+                    let node = free_node.as_ref().lock()?;
+                    // try to find a free page that is not being used
+                    if node.is_dirty() {
+                        p_first = node.get_next_free();
+                    } else {
+                        break;
+                    }
+                }
+
+                if p_first.is_none() {
+                    // all page was dirty, sync all page
+                    match self.sync_all_pages() {
+                        Ok(_) => {}
+                        Err(_) => {
+                            self.rollback()?;
+                            return Err(error_values(SQLExecValue::IOERR));
+                        }
+                    }
+
+                    p_first = self.p_first.as_ref().map(Arc::clone);
+                }
+
+                // remove p_first in free list
+                if let Some(free_first) = p_first {
+                    let mut free_node = free_first.as_ref().lock()?;
+
+                    // remove it with free list
+                    if let Some(free_prev) = free_node.get_prev_free() {
+                        let mut prev_node = free_prev.as_ref().lock()?;
+                        prev_node.set_next_free(free_node.get_next_free());
+                    } else {
+                        self.p_first = free_node.get_next_free();
+                    }
+                    if let Some(free_next) = free_node.get_next_free() {
+                        let mut next_node = free_next.as_ref().lock()?;
+                        next_node.set_prev_free(free_node.get_prev_free());
+                    } else {
+                        self.p_last = free_node.get_prev_free();
+                    }
+                    free_node.set_next_free(None);
+                    free_node.set_prev_free(None);
+
+                    // remove it with hash list
+                    if let Some(hash_next) = free_node.get_next_hash() {
+                        let mut next_node = hash_next.as_ref().lock()?;
+                        next_node.set_prev_hash(free_node.get_prev_hash());
+                    }
+                    if let Some(hash_prev) = free_node.get_prev_hash() {
+                        let mut prev_node = hash_prev.as_ref().lock()?;
+                        prev_node.set_next_hash(free_node.get_next_hash());
+                    } else {
+                        // in the hash list head
+                        let hash_key = pgno_hash(free_node.get_pgno());
+                        match free_node.get_next_hash() {
+                            Some(node) => self.a_hash.insert(hash_key, node),
+                            None => self.a_hash.remove(&hash_key),
+                        };
+                    }
+                    free_node.set_next_hash(None);
+                    free_node.set_prev_hash(None);
+
+                    drop(free_node);
+                    p_pg = Some(free_first);
+                } else {
+                    return Err(error_values(SQLExecValue::IOERR));
+                }
+                self.n_ovfl += 1;
+            }
+
+            if let Some(pg_hdr) = p_pg.as_ref() {
+                let mut pg = pg_hdr.lock()?;
+
+                match self.a_in_journal.as_ref() {
+                    Some(in_journal) if pgno < self.orig_db_size => {
+                        if let Some(index) = in_journal.get(pgno as usize / 8) {
+                            pg.set_journal((*index & (1 << (pgno % 7))) != 0);
+                        }
+                    }
+                    _ => { /* do not anything */ }
+                }
+
+                match self.a_in_ckpt.as_ref() {
+                    Some(in_ckpt) if (pgno as u64) < self.ckpt_size => {
+                        if let Some(index) = in_ckpt.get(pgno as usize / 8) {
+                            pg.set_ckpt((*index & (1 << (pgno % 7))) != 0);
+                        }
+                    }
+                    _ => { /* do not anything */ }
+                }
+
+                pg.pg_ref();
+                self.n_ref += 1;
+
+                let hash_key = pgno_hash(pgno);
+                pg.set_next_hash(self.a_hash.get(&hash_key).map(Arc::clone));
+                self.a_hash.insert(hash_key, Arc::clone(pg_hdr));
+                if let Some(next_hash) = pg.get_next_hash() {
+                    let mut next = next_hash.as_ref().lock()?;
+                    next.set_prev_hash(Some(Arc::clone(pg_hdr)));
+                }
+
+                if self.db_size == 0 {
+                    self.pagecount()?;
+                }
+
+                if self.db_size >= pgno {
+                    let fd_read = self.fd.read()?;
+                    pg.read_data(fd_read)?;
+                }
+            }
+        }
+
+        p_pg.ok_or_else(|| error_values(SQLExecValue::IOERR))
+    }
+
+    fn pagecount(&mut self) -> Result<()> {
+        if self.db_size != 0 {
+            return Ok(());
+        }
+        let db_len = self.fd.read()?.metadata()?.len();
+        if self.stats != PageLockState::UNLOCK {
+            self.db_size = (db_len / PAGE_SIZE as u64) as u32;
+        }
+        Ok(())
+    }
+
+    /// Rollback all changes.
+    fn rollback(&mut self) -> Result<()> {
         todo!()
     }
 
-    pub fn lookup(&self, _pgno: u32) -> Result<Option<Arc<Mutex<PgHdr>>>> {
+    /// Sync the journal and then write all free dirty pages to the database file.
+    fn sync_all_pages(&mut self) -> Result<()> {
         todo!()
+    }
+
+    /// when this routine is called. the pager has the journal file open and
+    /// a write lock on the database.
+    /// this routine release the database write lock and acquires a read lock
+    /// in its place.
+    /// The journal file is deleted and closed
+    fn unwritelock(&mut self) -> Result<()> {
+        todo!()
+    }
+
+    /// find a page in the hash table given its page number.
+    pub fn lookup(&self, pgno: u32) -> Result<Option<Arc<Mutex<PgHdr>>>> {
+        if pgno == 0 {
+            return Ok(None);
+        }
+
+        if let Some(hash_list) = self.a_hash.get(&pgno_hash(pgno)) {
+            let mut hash_node = Some(Arc::clone(hash_list));
+            while let Some(node) = hash_node.as_ref() {
+                let hash_n = Arc::clone(node);
+                let n = hash_n.as_ref().lock()?;
+                if n.get_pgno().eq(&pgno) {
+                    break;
+                }
+                hash_node = n.get_next_hash();
+            }
+            return Ok(hash_node);
+        }
+        Ok(None)
     }
 }
 
@@ -258,11 +475,15 @@ fn pager_playback_one_page(
 
     if let Some(pghdr) = pager.lookup(pgno)? {
         let mut pg = pghdr.as_ref().lock()?;
-        pg.set_data(&record.data)?;
+        pg.set_data(&record.data);
     }
 
     fd.seek(SeekFrom::Start((record.pgno - 1) as u64 * PAGE_SIZE as u64))?;
     fd.write_all(&record.data)?;
 
     Ok(())
+}
+
+fn pgno_hash(pgno: u32) -> u32 {
+    pgno % PG_HASH as u32
 }

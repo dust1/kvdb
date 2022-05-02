@@ -1,11 +1,16 @@
 use core::slice;
+
 use std::mem::size_of;
 use std::ptr::addr_of;
+use std::sync::Arc;
+use std::sync::Mutex;
 
+use kvdb::common::options::PagerOption;
 use kvdb::error::Result;
-use kvdb::storage::b_tree::pager::PagerManager;
-use serde_derive::Deserialize;
-use serde_derive::Serialize;
+
+use kvdb::storage::sqlite::page::Pager;
+
+
 
 #[repr(C)]
 #[derive(Debug, PartialEq, Eq)]
@@ -15,8 +20,26 @@ struct Record {
 }
 
 #[test]
-fn test_pager() -> Result<()> {
-    let mut record = Record {
+fn pager_get_test() -> Result<()> {
+    let pager_option = PagerOption {
+        path: None,
+        max_page: 10,
+        n_extra: 0,
+        read_only: false,
+    };
+    let pager_arc = Arc::new(Mutex::new(Pager::open(pager_option)?));
+    let mut pager = pager_arc.as_ref().lock()?;
+    let pg_arc = pager.get_page(1, Arc::clone(&pager_arc))?;
+    let pg = pg_arc.as_ref().lock()?;
+    assert_eq!(pg.get_pgno(), 1);
+    let data = [0u8; 1024];
+    assert_eq!(pg.get_data(), &data);
+    Ok(())
+}
+
+#[test]
+fn pager_serialize_test() -> Result<()> {
+    let record = Record {
         pgno: 11,
         data: [0u8; 1024],
     };

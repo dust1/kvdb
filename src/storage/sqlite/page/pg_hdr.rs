@@ -1,10 +1,16 @@
+use std::fs::File;
+use std::os::unix::prelude::FileExt;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::RwLockReadGuard;
 
 use derivative::Derivative;
-use futures::lock::Mutex;
 
+use super::page_error::error_values;
+use super::page_error::SQLExecValue;
 use super::pager::PAGE_SIZE;
 use super::Pager;
+
 use crate::error::Result;
 
 #[derive(Derivative)]
@@ -24,12 +30,127 @@ pub struct PgHdr {
     in_ckpt: bool,                          // true if has been written to the checkpoint journal
     dirty: bool,                            // true if we need write back change
     data: [u8; PAGE_SIZE],                  // PAGE_SIZE bytes of page data follow this header
-    n_extra: Option<Vec<u8>>,
 }
 
 impl PgHdr {
-    pub fn set_data(&mut self, data: &[u8]) -> Result<()> {
-        self.data.copy_from_slice(data);
+    pub fn new(pager: Arc<Mutex<Pager>>, pgno: u32) -> Result<PgHdr> {
+        Ok(Self {
+            pager,
+            pgno,
+            p_next_hash: None,
+            p_prev_hash: None,
+            n_ref: 0,
+            p_next_free: None,
+            p_prev_free: None,
+            p_next_all: None,
+            p_prev_all: None,
+            in_journal: false,
+            in_ckpt: false,
+            dirty: false,
+            data: [0u8; PAGE_SIZE],
+        })
+    }
+
+    /// Increment the reference count for a page.
+    pub fn page_ref(&mut self) -> Result<()> {
+        if self.n_ref == 0 {
+            let mut pager = self.pager.as_ref().lock()?;
+            if let Some(prev_free) = self.p_prev_free.as_ref() {
+                let mut free_node = prev_free.lock()?;
+                free_node.set_next_free(self.get_next_free());
+            } else {
+                pager.set_first(self.get_next_free());
+            }
+
+            if let Some(next_free) = self.p_next_free.as_ref() {
+                let mut free_node = next_free.lock()?;
+                free_node.set_prev_free(self.get_prev_free());
+            } else {
+                pager.set_last(self.get_prev_free());
+            }
+
+            pager.add_ref();
+        }
+        self.n_ref += 1;
         Ok(())
+    }
+
+    pub fn pg_ref(&mut self) {
+        self.n_ref += 1;
+    }
+
+    pub fn set_ckpt(&mut self, ckpt: bool) {
+        self.in_ckpt = ckpt;
+    }
+
+    pub fn set_journal(&mut self, journal: bool) {
+        self.in_journal = journal;
+    }
+
+    pub fn get_ref(&self) -> u32 {
+        self.n_ref
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    pub fn set_next_all(&mut self, next_all: Arc<Mutex<PgHdr>>) {
+        self.p_next_all = Some(next_all);
+    }
+
+    pub fn set_prev_all(&mut self, prev_all: Arc<Mutex<PgHdr>>) {
+        self.p_prev_all = Some(prev_all);
+    }
+
+    pub fn read_data(&mut self, fd: RwLockReadGuard<File>) -> Result<()> {
+        match fd.read_exact_at(&mut self.data, (self.pgno - 1) as u64 * PAGE_SIZE as u64) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(error_values(SQLExecValue::IOERR)),
+        }
+    }
+
+    pub fn get_data(&self) -> &[u8] {
+        &self.data
+    }
+
+    pub fn set_data(&mut self, data: &[u8]) {
+        self.data.copy_from_slice(data);
+    }
+
+    pub fn get_pgno(&self) -> u32 {
+        self.pgno
+    }
+
+    pub fn set_prev_hash(&mut self, prev_hash: Option<Arc<Mutex<PgHdr>>>) {
+        self.p_prev_hash = prev_hash
+    }
+
+    pub fn get_prev_hash(&self) -> Option<Arc<Mutex<PgHdr>>> {
+        self.p_prev_hash.as_ref().map(Arc::clone)
+    }
+
+    pub fn set_next_hash(&mut self, next_hash: Option<Arc<Mutex<PgHdr>>>) {
+        self.p_next_hash = next_hash
+    }
+
+    pub fn get_next_hash(&self) -> Option<Arc<Mutex<PgHdr>>> {
+        self.p_next_hash.as_ref().map(Arc::clone)
+    }
+
+    pub fn set_prev_free(&mut self, prev_free: Option<Arc<Mutex<PgHdr>>>) {
+        self.p_prev_free = prev_free
+    }
+
+    pub fn get_prev_free(&self) -> Option<Arc<Mutex<PgHdr>>> {
+        self.p_prev_free.as_ref().map(Arc::clone)
+    }
+
+    pub fn set_next_free(&mut self, next_free: Option<Arc<Mutex<PgHdr>>>) {
+        self.p_next_free = next_free;
+    }
+
+    pub fn get_next_free(&self) -> Option<Arc<Mutex<PgHdr>>> {
+        self.p_next_free.as_ref().map(Arc::clone)
     }
 }

@@ -1,1 +1,1 @@
-mod page;
+pub mod page;
