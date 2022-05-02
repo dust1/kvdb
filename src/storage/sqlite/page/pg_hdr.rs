@@ -10,7 +10,6 @@ use super::page_error::error_values;
 use super::page_error::SQLExecValue;
 use super::pager::PAGE_SIZE;
 use super::Pager;
-
 use crate::error::Result;
 
 #[derive(Derivative)]
@@ -91,6 +90,10 @@ impl PgHdr {
         self.n_ref
     }
 
+    pub fn set_dirty(&mut self, dirty: bool) {
+        self.dirty = dirty;
+    }
+
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }
@@ -152,5 +155,9 @@ impl PgHdr {
 
     pub fn get_next_free(&self) -> Option<Arc<Mutex<PgHdr>>> {
         self.p_next_free.as_ref().map(Arc::clone)
+    }
+
+    pub fn get_next_all(&self) -> Option<Arc<Mutex<PgHdr>>> {
+        self.p_next_all.as_ref().map(Arc::clone)
     }
 }

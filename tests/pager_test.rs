@@ -1,5 +1,4 @@
 use core::slice;
-
 use std::mem::size_of;
 use std::ptr::addr_of;
 use std::sync::Arc;
@@ -7,10 +6,7 @@ use std::sync::Mutex;
 
 use kvdb::common::options::PagerOption;
 use kvdb::error::Result;
-
 use kvdb::storage::sqlite::page::Pager;
-
-
 
 #[repr(C)]
 #[derive(Debug, PartialEq, Eq)]
@@ -34,6 +30,12 @@ fn pager_get_test() -> Result<()> {
     assert_eq!(pg.get_pgno(), 1);
     let data = [0u8; 1024];
     assert_eq!(pg.get_data(), &data);
+    drop(pg);
+
+    if let Some(look_pg) = pager.lookup(1)? {
+        let pg = look_pg.as_ref().lock()?;
+        assert_eq!(pg.get_pgno(), 1);
+    }
     Ok(())
 }
 
