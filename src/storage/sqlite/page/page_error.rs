@@ -8,7 +8,7 @@ pub(super) const ERR_DISK: u8 = 0x05;
 
 /// Return values for sqlite_exec()
 #[derive(PartialEq, Clone, Copy, Debug)]
-pub(super) enum SQLExecValue {
+pub enum SQLExecValue {
     OK,
     ERROR,
     INTERNAL,

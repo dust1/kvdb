@@ -10,7 +10,9 @@ use super::page_error::error_values;
 use super::page_error::SQLExecValue;
 use super::pager::PAGE_SIZE;
 use super::Pager;
+use crate::error::Error;
 use crate::error::Result;
+use crate::storage::sqlite::page::pager::PageLockState;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -48,6 +50,58 @@ impl PgHdr {
             dirty: false,
             data: [0u8; PAGE_SIZE],
         })
+    }
+
+    pub fn write(&mut self, data: &[u8], offset: u64) -> Result<()> {
+        if PAGE_SIZE < offset as usize || offset as usize + data.len() > PAGE_SIZE {
+            return Err(error_values(SQLExecValue::NOMEM));
+        }
+        self.write_begin()?;
+
+        Ok(())
+    }
+
+    /// mark a data page as writeable. the page is written into the journal
+    /// if it is not there already.
+    fn write_begin(&mut self) -> Result<()> {
+        let mut pager = self.pager.as_ref().lock()?;
+        pager.err_mask()?;
+        if pager.read_only() {
+            return Err(error_values(SQLExecValue::PERM));
+        }
+        self.dirty = true;
+        if self.in_journal && (self.in_ckpt || !pager.ckpt_in_use()) {
+            pager.set_dirty_file(true);
+            return Ok(())
+        }
+
+        assert_ne!(pager.get_state(), PageLockState::UNLOCK);
+        pager.page_begin(self.pgno)?;
+        pager.set_dirty_file(true);
+        assert_eq!(pager.get_state(), PageLockState::WRITELOCK);
+        assert!(pager.get_journal_open());
+
+        if !self.in_journal && self.pgno <= pager.get_orig_db_size() {
+            // the page not writed to journal, and this not a new page
+            // the transaction journal now exists and we have a write lock on
+            // the main database file.
+            // write the current page to the transaction journal 
+            // if it is not there already.
+            match pager.write_pghdr_journal(self.pgno, &self.data) {
+                Ok(_) => {},
+                Err(_) => {
+                    pager.rollback()?;
+                    pager.put_err_mask(SQLExecValue::FULL);
+                    return Err(error_values(SQLExecValue::FULL));
+                }
+            }
+            assert!(pager.get_a_journal().is_some());
+            
+
+        }
+
+
+        Ok(())
     }
 
     /// Increment the reference count for a page.

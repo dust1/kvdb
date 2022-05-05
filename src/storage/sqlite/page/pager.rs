@@ -15,6 +15,7 @@ use std::sync::RwLockReadGuard;
 use std::sync::RwLockWriteGuard;
 
 use derivative::Derivative;
+use regex::bytes::Replacer;
 
 use super::page_error::error_values;
 use super::page_error::page_errorcode;
@@ -38,8 +39,8 @@ const PG_HASH: usize = 2003;
 /// jfd magic number
 pub(super) const JOURNAL_MAGIC: [u8; 8] = [0xca, 0xfe, 0xba, 0xbe, 0xa1, 0xb2, 0xc3, 0xd4];
 
-#[derive(Debug, PartialEq, Eq)]
-enum PageLockState {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum PageLockState {
     UNLOCK,
     READLOCK,
     WRITELOCK,
@@ -167,6 +168,70 @@ impl Pager {
 
     pub fn set_first(&mut self, first: Option<Arc<Mutex<PgHdr>>>) {
         self.p_first = first;
+    }
+
+    pub fn set_dirty_file(&mut self, dirty_file: bool) {
+        self.dirty_file = dirty_file;
+    }
+
+    pub fn read_only(&self) -> bool {
+        self.read_only
+    }
+
+    pub fn get_state(&self) -> PageLockState {
+        self.state.clone()
+    }
+
+    pub fn err_mask(&self) -> Result<()> {
+        match self.err_mask {
+            0 => Ok(()),
+            i => Err(error_values(SQLExecValue::from_bit(i)))
+        }
+    }
+
+    pub fn put_err_mask(&mut self, err: SQLExecValue) {
+        self.err_mask |= err.to_bit();
+    }
+
+    pub fn get_orig_db_size(&self) -> u32 {
+        self.orig_db_size
+    }
+
+    pub fn get_journal_open(&self) -> bool {
+        self.journal_open
+    }
+
+    pub fn get_a_journal(&self) -> Option<&Vec<u8>> {
+        self.a_in_journal.as_ref().clone()
+    }
+
+    pub fn put_a_journal(&mut self, pgno: u32) {
+        if let Some(mut journal) = self.a_in_journal.as_ref() {
+            let bit_index = pgno / 8;
+            // TODO 
+        }
+    }
+
+    pub fn ckpt_in_use(&self) -> bool {
+        self.ckpt_in_use
+    }
+
+    /// Acquire a write-lock on the database. The lock is removed when 
+    /// the any of the following happen:
+    ///     1. commit
+    ///     2. rollback
+    ///     3. close
+    ///     4. unref
+    pub fn page_begin(&mut self, pgno: u32) -> Result<()> {
+        todo!()
+    }
+
+    /// write pgno and page data to the journal file
+    pub fn write_pghdr_journal(&mut self, pgno: u32, pg_data: &[u8]) -> Result<()> {
+        let mut jfd = self.jfd.write()?;
+        jfd.write_all(&pgno.to_be_bytes())?;
+        jfd.write_all(pg_data)?;
+        Ok(())
     }
 
     /// create page with given page numbers
@@ -376,7 +441,7 @@ impl Pager {
     }
 
     /// Rollback all changes.
-    fn rollback(&mut self) -> Result<()> {
+    pub fn rollback(&mut self) -> Result<()> {
         if self.err_mask != 0 && self.err_mask != ERR_FULL {
             if self.state == PageLockState::WRITELOCK {
                 let mut fd = self.fd.write()?;
@@ -465,7 +530,24 @@ impl Pager {
     }
 
     fn ckpt_commit(&mut self) -> Result<()> {
-        todo!()
+        if self.ckpt_in_use {
+            if let Some(cpfd) = &self.cpfd {
+                let cpfd_write = cpfd.write()?;
+                cpfd_write.set_len(0)?;
+            }
+            self.ckpt_in_use = false;
+            self.a_in_ckpt = None;
+            
+            let mut p_all = self.p_all.as_ref().map(Arc::clone);
+            while let Some(all) = p_all.as_ref() {
+                let mut all_node = all.lock()?;
+                all_node.set_ckpt(false);
+                let next_node = all_node.get_next_all();
+                drop(all_node);
+                p_all = next_node;
+            }
+        }
+        Ok(())
     }
 
     /// find a page in the hash table given its page number.

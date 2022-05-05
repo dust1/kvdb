@@ -16,6 +16,27 @@ struct Record {
 }
 
 #[test]
+fn pager_write_test() -> Result<()> {
+    let pager_option = PagerOption {
+        path: None,
+        max_page: 10,
+        n_extra: 0,
+        read_only: false,
+    };
+    let pager_arc = Arc::new(Mutex::new(Pager::open(pager_option)?));
+    let pg_arc;
+    {
+        let mut pager = pager_arc.as_ref().lock()?;
+        pg_arc = pager.get_page(1, Arc::clone(&pager_arc))?;
+    }
+    let mut pg = pg_arc.as_ref().lock()?;
+    assert_eq!(pg.get_pgno(), 1);
+    let write_data = [0u8; 19];
+    pg.write(&write_data, 0)?;
+    Ok(())
+}
+
+#[test]
 fn pager_get_test() -> Result<()> {
     let pager_option = PagerOption {
         path: None,
