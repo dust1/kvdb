@@ -15,7 +15,7 @@ use std::sync::RwLockReadGuard;
 use std::sync::RwLockWriteGuard;
 
 use derivative::Derivative;
-use regex::bytes::Replacer;
+
 
 use super::page_error::error_values;
 use super::page_error::page_errorcode;
@@ -56,17 +56,11 @@ pub struct Pager {
     // file descriptor for database
     fd: RwLock<File>,
     // file descriptor for journal
-    jfd: RwLock<File>,
-    // file descriptor for checkpoint journal
-    cpfd: Option<RwLock<File>>,
+    jfd: Option<RwLock<File>>,
     // number of pages in the database filename
     db_size: u32,
     // db_size before the current change
     orig_db_size: u32,
-    // size of database at ckpt_begine()
-    ckpt_size: u64,
-    // size of journal at ckpt_begine()
-    ckpt_j_size: u64,
     // add this many bytes to each in-memory page, the user extra data size
     n_extra: u64,
     // total number of in-memory pages
@@ -83,10 +77,6 @@ pub struct Pager {
     n_ovfl: u32,
     // true if journal file descriptor is valid
     journal_open: bool,
-    // true if the checkpoint journal is open
-    ckpt_open: bool,
-    // true if we a in a checkpoint
-    ckpt_in_use: bool,
     // true if write the database and flush disk
     no_sync: bool,
     // the lock state
@@ -102,9 +92,8 @@ pub struct Pager {
     // true if database file has changed in any way
     dirty_file: bool,
     // one bit for each page in the database file
+    // record the writing of multiple Pages during a transaction execution
     a_in_journal: Option<Vec<u8>>,
-    // one bit for each page in the database
-    a_in_ckpt: Option<Vec<u8>>,
     // list of free page
     p_first: Option<Arc<Mutex<PgHdr>>>,
     // list of free page
@@ -120,17 +109,14 @@ impl Pager {
     pub fn open(option: PagerOption) -> Result<Self> {
         let (z_filename, z_journal) = option.get_paths()?;
         let fd = RwLock::new(File::create(z_filename.as_path())?);
-        let jfd = RwLock::new(File::create(z_journal.as_path())?);
+        // let jfd = RwLock::new(File::create(z_journal.as_path())?);
         let pager = Pager {
             z_filename,
             z_journal,
             fd,
-            jfd,
-            cpfd: None,
+            jfd: None,
             db_size: 0,
             orig_db_size: 0,
-            ckpt_size: 0,
-            ckpt_j_size: 0,
             n_extra: option.n_extra,
             n_page: 0,
             n_ref: 0,
@@ -139,8 +125,6 @@ impl Pager {
             n_miss: 0,
             n_ovfl: 0,
             journal_open: true,
-            ckpt_in_use: false,
-            ckpt_open: false,
             no_sync: false,
             state: PageLockState::UNLOCK,
             err_mask: 0,
@@ -148,7 +132,6 @@ impl Pager {
             read_only: option.read_only,
             need_sync: false,
             dirty_file: false,
-            a_in_ckpt: None,
             a_in_journal: None,
             p_first: None,
             p_last: None,
@@ -185,8 +168,16 @@ impl Pager {
     pub fn err_mask(&self) -> Result<()> {
         match self.err_mask {
             0 => Ok(()),
-            i => Err(error_values(SQLExecValue::from_bit(i)))
+            i => Err(error_values(SQLExecValue::from_bit(i))),
         }
+    }
+
+    pub fn get_db_size(&self) -> u32 {
+        self.db_size
+    }
+
+    pub fn set_db_size(&mut self, db_size: u32) {
+        self.db_size = db_size
     }
 
     pub fn put_err_mask(&mut self, err: SQLExecValue) {
@@ -205,33 +196,77 @@ impl Pager {
         self.a_in_journal.as_ref().clone()
     }
 
+    pub fn get_no_sync(&self) -> bool {
+        self.no_sync
+    }
+
+    pub fn set_need_sync(&mut self, need_sync: bool) {
+        self.need_sync = need_sync;
+    }
+
     pub fn put_a_journal(&mut self, pgno: u32) {
-        if let Some(mut journal) = self.a_in_journal.as_ref() {
-            let bit_index = pgno / 8;
-            // TODO 
-        }
+        self.a_in_journal = self.a_in_journal.clone().map(|mut j| {
+            j[pgno as usize / 8] |= 1 << (pgno & 7);
+            j
+        });
     }
 
-    pub fn ckpt_in_use(&self) -> bool {
-        self.ckpt_in_use
-    }
-
-    /// Acquire a write-lock on the database. The lock is removed when 
+    /// Acquire a write-lock on the database. The lock is removed when
     /// the any of the following happen:
     ///     1. commit
     ///     2. rollback
     ///     3. close
     ///     4. unref
-    pub fn page_begin(&mut self, pgno: u32) -> Result<()> {
-        todo!()
+    pub fn page_begin(&mut self) -> Result<()> {
+        assert_ne!(self.state, PageLockState::UNLOCK);
+        if self.state == PageLockState::READLOCK {
+            // when the transaction begin, the pager holds the read lock.
+            // only the upgrade of the lock is performed to acquire
+            // the write lock during the transaction
+            assert_eq!(self.a_in_journal, None);
+            let _ = self.fd.write()?;
+
+            self.a_in_journal = Some(vec![0u8; self.db_size as usize / 8 + 1]);
+            match File::create(self.z_journal.as_path()) {
+                Ok(jfd) => {
+                    self.jfd = Some(RwLock::new(jfd));
+                }
+                Err(_) => {
+                    self.a_in_journal = None;
+                    return Err(error_values(SQLExecValue::CANTOPEN));
+                }
+            }
+
+            self.journal_open = true;
+            self.need_sync = false;
+            self.dirty_file = false;
+            self.state = PageLockState::WRITELOCK;
+            self.pagecount()?;
+            self.orig_db_size = self.db_size;
+
+            // init journal file
+            // format: [JOURNAL_MAGIC][db_size before write]...
+            if let Some(jfd) = self.jfd.as_ref() {
+                let mut write_jfd = jfd.write()?;
+                match write_jfd
+                    .write_all(&JOURNAL_MAGIC)
+                    .and_then(|_| write_jfd.write_all(&self.db_size.to_be_bytes()))
+                {
+                    Err(_) => {
+                        drop(write_jfd);
+                        self.unwritelock()?;
+                        return Err(error_values(SQLExecValue::FULL));
+                    }
+                    Ok(_) => {}
+                }
+            }
+        }
+        Ok(())
     }
 
     /// write pgno and page data to the journal file
-    pub fn write_pghdr_journal(&mut self, pgno: u32, pg_data: &[u8]) -> Result<()> {
-        let mut jfd = self.jfd.write()?;
-        jfd.write_all(&pgno.to_be_bytes())?;
-        jfd.write_all(pg_data)?;
-        Ok(())
+    pub fn write_journal(&mut self, _pgno: u32, _pg_data: &[u8]) -> Result<()> {
+        todo!()
     }
 
     /// create page with given page numbers
@@ -268,9 +303,11 @@ impl Pager {
                     }
                 };
                 self.journal_open = true;
-                let mut read_jfd = self.jfd.read()?;
-                let db_size = pager_playback(self, &mut write_fd, &mut read_jfd)?;
-                self.db_size = db_size;
+                if let Some(jfd) = self.jfd.as_ref() {
+                    let mut read_jfd = jfd.read()?;
+                    let db_size = pager_playback(self, &mut write_fd, &mut read_jfd)?;
+                    self.db_size = db_size;
+                }
                 drop(write_fd);
             }
         } else {
@@ -395,15 +432,6 @@ impl Pager {
                     _ => { /* do not anything */ }
                 }
 
-                match self.a_in_ckpt.as_ref() {
-                    Some(in_ckpt) if (pgno as u64) < self.ckpt_size => {
-                        if let Some(index) = in_ckpt.get(pgno as usize / 8) {
-                            pg.set_ckpt((*index & (1 << (pgno % 7))) != 0);
-                        }
-                    }
-                    _ => { /* do not anything */ }
-                }
-
                 pg.pg_ref();
                 self.n_ref += 1;
 
@@ -445,8 +473,10 @@ impl Pager {
         if self.err_mask != 0 && self.err_mask != ERR_FULL {
             if self.state == PageLockState::WRITELOCK {
                 let mut fd = self.fd.write()?;
-                let jfd = self.jfd.read()?;
-                pager_playback(self, &mut fd, &jfd)?;
+                if let Some(jfd) = self.jfd.as_ref() {
+                    let jfd = jfd.read()?;
+                    pager_playback(self, &mut fd, &jfd)?;
+                }
             }
             return page_errorcode(self.err_mask);
         }
@@ -455,15 +485,16 @@ impl Pager {
             return Ok(());
         }
         let mut fd = self.fd.write()?;
-        let jfd = self.jfd.read()?;
-        match pager_playback(self, &mut fd, &jfd) {
-            Ok(_) => {}
-            Err(_) => {
-                self.err_mask |= ERR_CORRUPT;
-                return Err(error_values(SQLExecValue::CORRUPT));
+        if let Some(jfd) = self.jfd.as_ref() {
+            let jfd = jfd.read()?;
+            match pager_playback(self, &mut fd, &jfd) {
+                Ok(_) => {}
+                Err(_) => {
+                    self.err_mask |= ERR_CORRUPT;
+                    return Err(error_values(SQLExecValue::CORRUPT));
+                }
             }
         }
-
         self.db_size = 0;
         Ok(())
     }
@@ -472,7 +503,9 @@ impl Pager {
     fn sync_all_pages(&mut self) -> Result<()> {
         if self.need_sync {
             if !self.temp_file {
-                self.jfd.write()?.sync_all()?;
+                if let Some(jfd) = self.jfd.as_ref() {
+                    jfd.write()?.sync_all()?;
+                }
             }
             self.need_sync = false;
         }
@@ -504,11 +537,6 @@ impl Pager {
         if self.state != PageLockState::WRITELOCK {
             return Ok(());
         }
-        self.ckpt_commit()?;
-        if self.ckpt_open {
-            self.cpfd = None;
-            self.ckpt_open = false;
-        }
 
         self.journal_open = false;
         fs::remove_file(self.z_journal.as_path())?;
@@ -526,27 +554,6 @@ impl Pager {
         }
 
         self.state = PageLockState::READLOCK;
-        Ok(())
-    }
-
-    fn ckpt_commit(&mut self) -> Result<()> {
-        if self.ckpt_in_use {
-            if let Some(cpfd) = &self.cpfd {
-                let cpfd_write = cpfd.write()?;
-                cpfd_write.set_len(0)?;
-            }
-            self.ckpt_in_use = false;
-            self.a_in_ckpt = None;
-            
-            let mut p_all = self.p_all.as_ref().map(Arc::clone);
-            while let Some(all) = p_all.as_ref() {
-                let mut all_node = all.lock()?;
-                all_node.set_ckpt(false);
-                let next_node = all_node.get_next_all();
-                drop(all_node);
-                p_all = next_node;
-            }
-        }
         Ok(())
     }
 

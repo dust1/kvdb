@@ -24,15 +24,27 @@ fn pager_write_test() -> Result<()> {
         read_only: false,
     };
     let pager_arc = Arc::new(Mutex::new(Pager::open(pager_option)?));
-    let pg_arc;
+    let mut pg_arc;
     {
         let mut pager = pager_arc.as_ref().lock()?;
         pg_arc = pager.get_page(1, Arc::clone(&pager_arc))?;
     }
-    let mut pg = pg_arc.as_ref().lock()?;
-    assert_eq!(pg.get_pgno(), 1);
-    let write_data = [0u8; 19];
-    pg.write(&write_data, 0)?;
+    {
+        let mut pg = pg_arc.as_ref().lock()?;
+        assert_eq!(pg.get_pgno(), 1);
+        let write_data = [2u8; 19];
+        pg.write(&write_data, 0)?;
+    }
+    {
+        let pager = pager_arc.as_ref().lock()?;
+        if let Some(arc) = pager.lookup(1)? {
+            pg_arc = arc;
+        }
+    }
+    let pg = pg_arc.as_ref().lock()?;
+    let data = pg.get_data();
+    let assert_data = &data[0..19];
+    assert_eq!(assert_data, [2u8; 19]);
     Ok(())
 }
 

@@ -10,7 +10,7 @@ use super::page_error::error_values;
 use super::page_error::SQLExecValue;
 use super::pager::PAGE_SIZE;
 use super::Pager;
-use crate::error::Error;
+
 use crate::error::Result;
 use crate::storage::sqlite::page::pager::PageLockState;
 
@@ -28,7 +28,6 @@ pub struct PgHdr {
     p_next_all: Option<Arc<Mutex<PgHdr>>>,  // a list of all pages
     p_prev_all: Option<Arc<Mutex<PgHdr>>>,  // a list of all pages
     in_journal: bool,                       // true if has been written to journal
-    in_ckpt: bool,                          // true if has been written to the checkpoint journal
     dirty: bool,                            // true if we need write back change
     data: [u8; PAGE_SIZE],                  // PAGE_SIZE bytes of page data follow this header
 }
@@ -46,23 +45,28 @@ impl PgHdr {
             p_next_all: None,
             p_prev_all: None,
             in_journal: false,
-            in_ckpt: false,
             dirty: false,
             data: [0u8; PAGE_SIZE],
         })
     }
 
+    /// write data to page
     pub fn write(&mut self, data: &[u8], offset: u64) -> Result<()> {
         if PAGE_SIZE < offset as usize || offset as usize + data.len() > PAGE_SIZE {
             return Err(error_values(SQLExecValue::NOMEM));
         }
         self.write_begin()?;
-
+        let data_slice = &mut self.data[offset as usize..offset as usize + data.len()];
+        data_slice.copy_from_slice(data);
         Ok(())
     }
 
     /// mark a data page as writeable. the page is written into the journal
     /// if it is not there already.
+    ///
+    /// My:
+    ///     this is to check wheter the page writes the original data
+    ///     to the journal file and checkpoint file before writing the data
     fn write_begin(&mut self) -> Result<()> {
         let mut pager = self.pager.as_ref().lock()?;
         pager.err_mask()?;
@@ -70,13 +74,14 @@ impl PgHdr {
             return Err(error_values(SQLExecValue::PERM));
         }
         self.dirty = true;
-        if self.in_journal && (self.in_ckpt || !pager.ckpt_in_use()) {
+        if self.in_journal {
             pager.set_dirty_file(true);
-            return Ok(())
+            return Ok(());
         }
 
         assert_ne!(pager.get_state(), PageLockState::UNLOCK);
-        pager.page_begin(self.pgno)?;
+
+        pager.page_begin()?;
         pager.set_dirty_file(true);
         assert_eq!(pager.get_state(), PageLockState::WRITELOCK);
         assert!(pager.get_journal_open());
@@ -85,10 +90,10 @@ impl PgHdr {
             // the page not writed to journal, and this not a new page
             // the transaction journal now exists and we have a write lock on
             // the main database file.
-            // write the current page to the transaction journal 
+            // write the current page to the transaction journal
             // if it is not there already.
-            match pager.write_pghdr_journal(self.pgno, &self.data) {
-                Ok(_) => {},
+            match pager.write_journal(self.pgno, &self.data) {
+                Ok(_) => {}
                 Err(_) => {
                     pager.rollback()?;
                     pager.put_err_mask(SQLExecValue::FULL);
@@ -96,10 +101,15 @@ impl PgHdr {
                 }
             }
             assert!(pager.get_a_journal().is_some());
-            
-
+            pager.put_a_journal(self.pgno);
+            let no_sync = pager.get_no_sync();
+            pager.set_need_sync(!no_sync);
+            self.in_journal = true;
         }
 
+        if pager.get_db_size() < self.pgno {
+            pager.set_db_size(self.pgno);
+        }
 
         Ok(())
     }
@@ -130,10 +140,6 @@ impl PgHdr {
 
     pub fn pg_ref(&mut self) {
         self.n_ref += 1;
-    }
-
-    pub fn set_ckpt(&mut self, ckpt: bool) {
-        self.in_ckpt = ckpt;
     }
 
     pub fn set_journal(&mut self, journal: bool) {
