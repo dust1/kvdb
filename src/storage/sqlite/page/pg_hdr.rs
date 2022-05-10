@@ -10,7 +10,6 @@ use super::page_error::error_values;
 use super::page_error::SQLExecValue;
 use super::pager::PAGE_SIZE;
 use super::Pager;
-
 use crate::error::Result;
 use crate::storage::sqlite::page::pager::PageLockState;
 

@@ -1,6 +1,5 @@
 use super::pager::PAGE_SIZE;
 
-
 #[repr(C)]
 pub struct PageRecord {
     pub pgno: u32,

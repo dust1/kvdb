@@ -36,6 +36,10 @@ fn pager_write_test() -> Result<()> {
         pg.write(&write_data, 0)?;
     }
     {
+        let mut pager = pager_arc.as_ref().lock()?;
+        pager.commit()?;
+    }
+    {
         let pager = pager_arc.as_ref().lock()?;
         if let Some(arc) = pager.lookup(1)? {
             pg_arc = arc;

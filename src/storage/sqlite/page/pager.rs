@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
@@ -15,7 +14,6 @@ use std::sync::RwLockReadGuard;
 use std::sync::RwLockWriteGuard;
 
 use derivative::Derivative;
-
 
 use super::page_error::error_values;
 use super::page_error::page_errorcode;
@@ -209,6 +207,73 @@ impl Pager {
             j[pgno as usize / 8] |= 1 << (pgno & 7);
             j
         });
+    }
+
+    /// commit all changes to the database and release the write lock.
+    pub fn commit(&mut self) -> Result<()> {
+        if self.err_mask == SQLExecValue::FULL.to_bit() {
+            self.rollback()?;
+            return Err(error_values(SQLExecValue::FULL));
+        }
+        if self.err_mask != 0 {
+            return Err(error_values(SQLExecValue::from_bit(self.err_mask)));
+        }
+        if self.state != PageLockState::WRITELOCK {
+            return Err(error_values(SQLExecValue::ERROR));
+        }
+        assert!(self.journal_open);
+
+        if !self.dirty_file {
+            self.unwritelock()?;
+            self.db_size = 0;
+            return Ok(());
+        }
+
+        if self.need_sync {
+            if let Some(jfd) = self.jfd.as_ref() {
+                let j = jfd.write()?;
+                if let Err(_) = j.sync_all() {
+                    drop(j);
+                    self.rollback()?;
+                    return Err(error_values(SQLExecValue::FULL));
+                }
+            }
+        }
+
+        // hloding write lock
+        let fd_writer = self.fd.write()?;
+
+        let mut p_all = self.p_all.as_ref().map(Arc::clone);
+        while let Some(all) = p_all.as_ref() {
+            let node = all.lock()?;
+            if !node.is_dirty() {
+                continue;
+            }
+            let offset = (node.get_pgno() - 1) as u64 * PAGE_SIZE as u64;
+            if let Err(_) = fd_writer.write_all_at(node.get_data(), offset) {
+                drop(fd_writer);
+                self.rollback()?;
+                return Err(error_values(SQLExecValue::FULL));
+            }
+
+            let next_all = node.get_next_all();
+            drop(node);
+            p_all = next_all;
+        }
+
+        if !self.no_sync {
+            if let Err(_) = fd_writer.sync_all() {
+                drop(fd_writer);
+                self.rollback()?;
+                return Err(error_values(SQLExecValue::FULL));
+            }
+        }
+
+        drop(fd_writer);
+        self.unwritelock()?;
+        self.db_size = 0;
+
+        Ok(())
     }
 
     /// Acquire a write-lock on the database. The lock is removed when
