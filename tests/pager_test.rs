@@ -1,8 +1,5 @@
 use core::slice;
-
-
 use std::mem::size_of;
-
 use std::ptr::addr_of;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -19,7 +16,7 @@ struct Record {
 }
 
 #[test]
-fn pager_write_test() -> Result<()> {
+fn page_test() -> Result<()> {
     let pager_option = PagerOption {
         path: None,
         max_page: 10,
@@ -27,66 +24,98 @@ fn pager_write_test() -> Result<()> {
         read_only: false,
     };
     let pager_arc = Arc::new(Mutex::new(Pager::open(pager_option)?));
-    let mut pg_arc;
     {
+        // step 1: open new file and create three page
         let mut pager = pager_arc.as_ref().lock()?;
-        pg_arc = pager.get_page(1, Arc::clone(&pager_arc))?;
+        pager.get_page(1, Arc::clone(&pager_arc))?;
+        pager.get_page(2, Arc::clone(&pager_arc))?;
+        pager.get_page(3, Arc::clone(&pager_arc))?;
     }
     {
-        let mut pg = pg_arc.as_ref().lock()?;
-        assert_eq!(pg.get_pgno(), 1);
-        let write_data = [2u8; 19];
-        pg.write(&write_data, 0)?;
-    }
-    {
+        // step 2: write data into three different pages and save it on the file
+        if let Some(pghdr) = {
+            let pager = pager_arc.as_ref().lock()?;
+            pager.lookup(1)?
+        } {
+            let mut pg = pghdr.as_ref().lock()?;
+            pg.write("Page One".as_bytes(), 0)?;
+        }
         let mut pager = pager_arc.as_ref().lock()?;
         pager.commit()?;
     }
     {
-        let pager = pager_arc.as_ref().lock()?;
-        if let Some(arc) = pager.lookup(1)? {
-            pg_arc = arc;
+        if let Some(pghdr) = {
+            let pager = pager_arc.as_ref().lock()?;
+            pager.lookup(2)?
+        } {
+            let mut pg = pghdr.as_ref().lock()?;
+            pg.write("Page Two".as_bytes(), 0)?;
+        }
+
+        if let Some(pghdr) = {
+            let pager = pager_arc.as_ref().lock()?;
+            pager.lookup(3)?
+        } {
+            let mut pg = pghdr.as_ref().lock()?;
+            pg.write("Page Three".as_bytes(), 0)?;
+        }
+        let mut pager = pager_arc.as_ref().lock()?;
+        pager.commit()?;
+    }
+    {
+        // step 3: read pages to make sure changes commited
+
+        if let Some(pghdr) = {
+            let pager = pager_arc.as_ref().lock()?;
+            pager.lookup(1)?
+        } {
+            let pg = pghdr.as_ref().lock()?;
+            let data = &pg.get_data()[..8];
+            assert_eq!(data, "Page One".as_bytes());
+        }
+        if let Some(pghdr) = {
+            let pager = pager_arc.as_ref().lock()?;
+            pager.lookup(2)?
+        } {
+            let pg = pghdr.as_ref().lock()?;
+            let data = &pg.get_data()[..8];
+            assert_eq!(data, "Page Two".as_bytes());
+        }
+        if let Some(pghdr) = {
+            let pager = pager_arc.as_ref().lock()?;
+            pager.lookup(3)?
+        } {
+            let pg = pghdr.as_ref().lock()?;
+            let data = &pg.get_data()[..10];
+            assert_eq!(data, "Page Three".as_bytes());
         }
     }
     {
-        let mut pg = pg_arc.as_ref().lock()?;
-        assert_eq!(pg.get_pgno(), 1);
-        let write_data = [3u8; 19];
-        pg.write(&write_data, 0)?;
-    }
-    {
-        let mut pager = pager_arc.as_ref().lock()?;
-        pager.rollback()?;
-    }
+        // step 4: write data into the third page and before commit the changes, rollback to the previous state
+        if let Some(pghdr) = {
+            let pager = pager_arc.as_ref().lock()?;
+            pager.lookup(3)?
+        } {
+            let mut pg = pghdr.as_ref().lock()?;
+            pg.write("Page test rollback".as_bytes(), 0)?;
+        }
+        {
+            let mut pager = pager_arc.as_ref().lock()?;
+            pager.rollback()?;
+            pager.commit()?;
+        }
+        let pghdr = {
+            let mut pager = pager_arc.as_ref().lock()?;
+            pager.get_page(3, Arc::clone(&pager_arc))?
+        };
 
-    let pg = pg_arc.as_ref().lock()?;
-    let data = pg.get_data();
-    let assert_data = &data[0..19];
-    assert_eq!(assert_data, [2u8; 19]);
-    Ok(())
-}
-
-#[test]
-fn pager_get_test() -> Result<()> {
-    let pager_option = PagerOption {
-        path: None,
-        max_page: 10,
-        n_extra: 0,
-        read_only: false,
-    };
-    let pager_arc = Arc::new(Mutex::new(Pager::open(pager_option)?));
+        let pg = pghdr.as_ref().lock()?;
+        let data = &pg.get_data()[..10];
+        assert_eq!(data, "Page Three".as_bytes());
+    }
     let mut pager = pager_arc.as_ref().lock()?;
-    let pg_arc = pager.get_page(1, Arc::clone(&pager_arc))?;
-    let pg = pg_arc.as_ref().lock()?;
-    assert_eq!(pg.get_pgno(), 1);
-    let data = [0u8; 1024];
-    assert_eq!(pg.get_data(), &data);
-    drop(pg);
+    assert_eq!(pager.pagecount()?, 3);
 
-    if let Some(look_pg) = pager.lookup(1)? {
-        let pg = look_pg.as_ref().lock()?;
-        assert_eq!(pg.get_pgno(), 1);
-    }
     Ok(())
 }
 

@@ -165,7 +165,7 @@ impl PgHdr {
         self.p_prev_all = Some(prev_all);
     }
 
-    pub fn read_data(&mut self, fd: RwLockReadGuard<File>) -> Result<()> {
+    pub fn read_fd(&mut self, fd: RwLockReadGuard<File>) -> Result<()> {
         match fd.read_exact_at(&mut self.data, (self.pgno - 1) as u64 * PAGE_SIZE as u64) {
             Ok(_) => Ok(()),
             Err(_) => Err(error_values(SQLExecValue::IOERR)),

@@ -258,6 +258,9 @@ impl Pager {
         while let Some(all) = p_all.as_ref() {
             let node = all.lock()?;
             if !node.is_dirty() {
+                let next_all = node.get_next_all();
+                drop(node);
+                p_all = next_all;
                 continue;
             }
             let offset = (node.get_pgno() - 1) as u64 * PAGE_SIZE as u64;
@@ -350,8 +353,8 @@ impl Pager {
     /// write pgno and page data to the journal file
     pub fn write_journal(&mut self, pgno: u32, pg_data: &[u8]) -> Result<()> {
         if let Some(jfd) = self.jfd.as_ref() {
-            let mut writer = jfd.write()?;
-            writer.seek(SeekFrom::End(0))?;
+            let writer = jfd.write()?;
+            let len = writer.metadata()?.len();
 
             let mut record_data = [0u8; PAGE_SIZE];
             record_data.copy_from_slice(pg_data);
@@ -364,7 +367,7 @@ impl Pager {
             let record_serialize =
                 unsafe { slice::from_raw_parts(byte_ptr, size_of::<PageRecord>()) };
 
-            writer.write_all(record_serialize)?;
+            writer.write_all_at(record_serialize, len)?;
         }
         Ok(())
     }
@@ -549,7 +552,7 @@ impl Pager {
 
                 if self.db_size >= pgno {
                     let fd_read = self.fd.read()?;
-                    pg.read_data(fd_read)?;
+                    pg.read_fd(fd_read)?;
                 }
             }
         }
@@ -557,15 +560,15 @@ impl Pager {
         p_pg.ok_or_else(|| error_values(SQLExecValue::IOERR))
     }
 
-    fn pagecount(&mut self) -> Result<()> {
+    pub fn pagecount(&mut self) -> Result<u32> {
         if self.db_size != 0 {
-            return Ok(());
+            return Ok(0);
         }
         let db_len = self.fd.read()?.metadata()?.len();
         if self.state != PageLockState::UNLOCK {
             self.db_size = (db_len / PAGE_SIZE as u64) as u32;
         }
-        Ok(())
+        Ok(self.db_size)
     }
 
     /// Rollback all changes.
@@ -716,8 +719,10 @@ fn pager_playback(
         Ok(_) => {}
     }
 
-    for pgno in 1..n_rec + 1 {
-        pager_playback_one_page(pgno as u32, pager, fd, jfd)?;
+    let record_size = size_of::<PageRecord>() as u64;
+    let used_offset = JOURNAL_MAGIC.len() as u64 + size_of::<u32>() as u64;
+    for i in 1..n_rec + 1 {
+        pager_playback_one_page(pager, fd, jfd, used_offset + (i - 1) * record_size)?;
     }
 
     Ok(mx_pg)
@@ -726,15 +731,14 @@ fn pager_playback(
 /// read a single page from the journal file opened file descripter jfd.
 /// playback this one page.
 fn pager_playback_one_page(
-    pgno: u32,
     pager: &Pager,
     fd: &mut RwLockWriteGuard<File>,
     jfd: &RwLockReadGuard<File>,
+    offset: u64,
 ) -> Result<()> {
     const RECORD_SIZE: usize = size_of::<PageRecord>();
     let mut record_data = [0u8; RECORD_SIZE];
-    let offset = JOURNAL_MAGIC.len() + size_of::<u32>() + RECORD_SIZE * (pgno - 1) as usize;
-    jfd.read_exact_at(&mut record_data, offset as u64)?;
+    jfd.read_exact_at(&mut record_data, offset)?;
 
     let byte_ptr: *const u8 = record_data.as_ptr();
     let record = unsafe {
@@ -744,7 +748,7 @@ fn pager_playback_one_page(
             .ok_or_else(|| Error::Internal("read journal fail".into()))?
     };
 
-    if let Some(pghdr) = pager.lookup(pgno)? {
+    if let Some(pghdr) = pager.lookup(record.pgno)? {
         let mut pg = pghdr.as_ref().lock()?;
         pg.set_data(&record.data);
     }
