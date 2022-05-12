@@ -1,5 +1,8 @@
 use core::slice;
+
+
 use std::mem::size_of;
+
 use std::ptr::addr_of;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -45,6 +48,17 @@ fn pager_write_test() -> Result<()> {
             pg_arc = arc;
         }
     }
+    {
+        let mut pg = pg_arc.as_ref().lock()?;
+        assert_eq!(pg.get_pgno(), 1);
+        let write_data = [3u8; 19];
+        pg.write(&write_data, 0)?;
+    }
+    {
+        let mut pager = pager_arc.as_ref().lock()?;
+        pager.rollback()?;
+    }
+
     let pg = pg_arc.as_ref().lock()?;
     let data = pg.get_data();
     let assert_data = &data[0..19];

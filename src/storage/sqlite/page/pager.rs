@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::mem::size_of;
 use std::os::unix::prelude::FileExt;
 use std::path::PathBuf;
+use std::ptr::addr_of;
+use std::slice;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::RwLock;
@@ -106,7 +109,15 @@ pub struct Pager {
 impl Pager {
     pub fn open(option: PagerOption) -> Result<Self> {
         let (z_filename, z_journal) = option.get_paths()?;
-        let fd = RwLock::new(File::create(z_filename.as_path())?);
+        let fd = RwLock::new(
+            OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .read(true)
+                .open(z_filename.as_path())?,
+        );
+
         // let jfd = RwLock::new(File::create(z_journal.as_path())?);
         let pager = Pager {
             z_filename,
@@ -292,7 +303,14 @@ impl Pager {
             let _ = self.fd.write()?;
 
             self.a_in_journal = Some(vec![0u8; self.db_size as usize / 8 + 1]);
-            match File::create(self.z_journal.as_path()) {
+
+            match OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .read(true)
+                .open(self.z_journal.as_path())
+            {
                 Ok(jfd) => {
                     self.jfd = Some(RwLock::new(jfd));
                 }
@@ -330,8 +348,25 @@ impl Pager {
     }
 
     /// write pgno and page data to the journal file
-    pub fn write_journal(&mut self, _pgno: u32, _pg_data: &[u8]) -> Result<()> {
-        todo!()
+    pub fn write_journal(&mut self, pgno: u32, pg_data: &[u8]) -> Result<()> {
+        if let Some(jfd) = self.jfd.as_ref() {
+            let mut writer = jfd.write()?;
+            writer.seek(SeekFrom::End(0))?;
+
+            let mut record_data = [0u8; PAGE_SIZE];
+            record_data.copy_from_slice(pg_data);
+            let record = PageRecord {
+                pgno,
+                data: record_data,
+            };
+            let record_ptr = addr_of!(record);
+            let byte_ptr = record_ptr as *const u8;
+            let record_serialize =
+                unsafe { slice::from_raw_parts(byte_ptr, size_of::<PageRecord>()) };
+
+            writer.write_all(record_serialize)?;
+        }
+        Ok(())
     }
 
     /// create page with given page numbers
@@ -662,7 +697,10 @@ fn pager_playback(
 
     let mut magic = [0u8; JOURNAL_MAGIC.len()];
     match jfd.read_exact_at(&mut magic, 0) {
-        Err(_) => return Err(error_values(SQLExecValue::CORRUPT)),
+        Err(e) => {
+            println!("{:?}", e);
+            return Err(error_values(SQLExecValue::CORRUPT));
+        }
         Ok(_) => {}
     };
 
