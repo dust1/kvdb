@@ -31,7 +31,7 @@ use crate::error::Error;
 use crate::error::Result;
 
 /// page size
-pub(super) const PAGE_SIZE: usize = 1024;
+pub const PAGE_SIZE: usize = 1024;
 
 /// How big to make the hash table used for locating in-memory pages
 /// by page number.
