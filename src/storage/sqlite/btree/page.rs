@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::cell::Cell;
 use super::MAGIC_SIZE;
 use super::MX_CELL;
@@ -29,13 +31,19 @@ pub struct PageHdr {
     first_free: u16,
 }
 
+#[repr(C)]
+pub enum MemPageHdr {
+    DISK([u8;PAGE_SIZE]),
+    HDR(PageHdr)
+}
+
+#[repr(C)]
 pub struct MemPage {
-    n_a_disk: [u8; PAGE_SIZE],
-    n_hdr: PageHdr,
+    n: MemPageHdr,
     is_init: i32,
-    p_parent: Box<MemPage>,
+    p_parent: Arc<MemPage>,
     n_free: i32,
     n_cell: i32,
     is_overfull: i32,
-    ap_cell: [Cell; MX_CELL + 2],
+    ap_cell: Arc<[Cell; MX_CELL + 2]>,
 }

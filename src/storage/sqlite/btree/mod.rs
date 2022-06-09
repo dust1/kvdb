@@ -1,7 +1,7 @@
 mod btree;
 mod cell;
 mod overflow;
-mod page;
+pub mod page;
 
 use std::mem::size_of;
 
