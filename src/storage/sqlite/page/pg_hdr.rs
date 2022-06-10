@@ -165,6 +165,7 @@ impl PgHdr {
         self.p_prev_all = Some(prev_all);
     }
 
+    /// read this data with pgno from fd
     pub fn read_fd(&mut self, fd: RwLockReadGuard<File>) -> Result<()> {
         match fd.read_exact_at(&mut self.data, (self.pgno - 1) as u64 * PAGE_SIZE as u64) {
             Ok(_) => Ok(()),

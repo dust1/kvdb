@@ -1,11 +1,13 @@
 use super::MX_LOCAL_PAYLOAD;
 
+#[derive(Clone, Copy)]
 pub struct Cell {
     h: CellHdr,
     a_payload: [u8; MX_LOCAL_PAYLOAD],
     ovfl: u32,
 }
 
+#[derive(Clone, Copy)]
 pub struct CellHdr {
     left_child: u32,
     n_key: u16,

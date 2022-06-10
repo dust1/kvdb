@@ -385,7 +385,7 @@ impl Pager {
         let mut p_pg = None;
 
         if self.n_ref == 0 {
-            // this is a new pager or not used
+            // this is a new pager or not used, should try to playback journal
             let read_lock = match self.fd.read() {
                 Err(_) => return Err(error_values(SQLExecValue::BUSY)),
                 Ok(rl) => {
@@ -395,6 +395,7 @@ impl Pager {
             };
 
             if self.z_journal.exists() && read_lock.metadata()?.len() > 0 {
+                // if journal file exists. playback it
                 drop(read_lock);
                 let mut write_fd = match self.fd.write() {
                     Err(_) => {
@@ -425,6 +426,8 @@ impl Pager {
             self.n_miss += 1;
             if self.n_page < self.mx_page || self.p_first.is_none() {
                 // create a new page
+
+                // create a blank pg_hdr
                 let pg_hdr = match PgHdr::new(pg_ref, pgno) {
                     Ok(p) => p,
                     Err(_) => {
@@ -526,6 +529,7 @@ impl Pager {
             if let Some(pg_hdr) = p_pg.as_ref() {
                 let mut pg = pg_hdr.lock()?;
 
+                // set write pgno in a_in_journal
                 match self.a_in_journal.as_ref() {
                     Some(in_journal) if pgno < self.orig_db_size => {
                         if let Some(index) = in_journal.get(pgno as usize / 8) {
@@ -538,6 +542,7 @@ impl Pager {
                 pg.pg_ref();
                 self.n_ref += 1;
 
+                // append hash list
                 let hash_key = pgno_hash(pgno);
                 pg.set_next_hash(self.a_hash.get(&hash_key).map(Arc::clone));
                 self.a_hash.insert(hash_key, Arc::clone(pg_hdr));
@@ -551,6 +556,7 @@ impl Pager {
                 }
 
                 if self.db_size >= pgno {
+                    // if pgni exist, try to read data from fd
                     let fd_read = self.fd.read()?;
                     pg.read_fd(fd_read)?;
                 }

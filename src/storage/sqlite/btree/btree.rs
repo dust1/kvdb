@@ -12,8 +12,6 @@ use crate::storage::sqlite::page::PAGE_SIZE;
 use crate::storage::sqlite::page::Pager;
 use crate::storage::Store;
 
-const EXTRA_SIZE: usize = size_of::<MemPage>() - PAGE_SIZE;
-
 pub struct Btree {
     pager: Arc<Mutex<Pager>>,
     cursor: Option<BtCursor>,
