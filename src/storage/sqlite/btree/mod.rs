@@ -6,7 +6,8 @@ pub mod page;
 use std::mem::size_of;
 
 use self::cell::CellHdr;
-use self::page::{PageHdr, MemPage};
+use self::page::MemPage;
+use self::page::PageHdr;
 use super::page::PAGE_SIZE;
 
 const MIN_CELL_SIZE: usize = size_of::<CellHdr>() + 4;

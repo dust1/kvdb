@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
+
 use super::cell::Cell;
 use super::MAGIC_SIZE;
 use super::MX_CELL;
@@ -10,6 +13,8 @@ use crate::storage::sqlite::page::PAGE_SIZE;
 
 /// the first page of the database file contains a magic header string to identify the file
 /// as an SQLITE database file.
+#[repr(C)]
+#[derive(Debug)]
 pub struct PageOne {
     // String that identifies the file as a database
     z_magic: [u8; MAGIC_SIZE],
@@ -60,20 +65,17 @@ pub struct MemPage {
 }
 
 impl MemPage {
-
     pub fn from_data(data: &[u8]) -> Result<MemPage> {
         if data.len() != PAGE_SIZE {
             return Err(Error::Serialization);
         }
-        // FIXME: this means that the data in MemPage and PageHdr is 
+        // FIXME: this means that the data in MemPage and PageHdr is
         // no longer the same piece of memory
         let mut disk_data = [0u8; PAGE_SIZE];
         disk_data.copy_from_slice(data);
 
         Ok(Self {
-            n: MemPageHdr {
-                disk: disk_data,
-            },
+            n: MemPageHdr { disk: disk_data },
             is_init: 1,
             p_parent: None,
             n_free: 1,
@@ -82,5 +84,4 @@ impl MemPage {
             ap_cell: [0; MX_CELL + 2],
         })
     }
-
 }

@@ -12,6 +12,7 @@ use std::ptr::addr_of;
 use std::slice;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::MutexGuard;
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
 use std::sync::RwLockWriteGuard;
@@ -264,7 +265,7 @@ impl Pager {
                 continue;
             }
             let offset = (node.get_pgno() - 1) as u64 * PAGE_SIZE as u64;
-            if let Err(_) = fd_writer.write_all_at(node.get_data(), offset) {
+            if let Err(_) = fd_writer.write_all_at(&node.get_data(), offset) {
                 drop(fd_writer);
                 self.rollback()?;
                 return Err(error_values(SQLExecValue::FULL));
@@ -625,7 +626,7 @@ impl Pager {
             if all_node.is_dirty() {
                 let fd_write = self.fd.write()?;
                 let offset = (all_node.get_pgno() - 1) as u64 * PAGE_SIZE as u64;
-                fd_write.write_all_at(all_node.get_data(), offset)?;
+                fd_write.write_all_at(&all_node.get_data(), offset)?;
                 drop(fd_write);
                 all_node.set_dirty(false);
             }

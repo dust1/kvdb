@@ -2,6 +2,7 @@ use std::fs::File;
 use std::os::unix::prelude::FileExt;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
 
 use derivative::Derivative;
@@ -9,6 +10,7 @@ use derivative::Derivative;
 use super::page_error::error_values;
 use super::page_error::SQLExecValue;
 use super::pager::PAGE_SIZE;
+use super::DiskData;
 use super::Pager;
 use crate::error::Result;
 use crate::storage::sqlite::page::pager::PageLockState;
@@ -28,11 +30,12 @@ pub struct PgHdr {
     p_prev_all: Option<Arc<Mutex<PgHdr>>>,  // a list of all pages
     in_journal: bool,                       // true if has been written to journal
     dirty: bool,                            // true if we need write back change
-    data: [u8; PAGE_SIZE],                  // PAGE_SIZE bytes of page data follow this header
+    data: Arc<RwLock<DiskData>>,            // PAGE_SIZE bytes of page data follow this header
 }
 
 impl PgHdr {
     pub fn new(pager: Arc<Mutex<Pager>>, pgno: u32) -> Result<PgHdr> {
+        let disk_data = DiskData::new();
         Ok(Self {
             pager,
             pgno,
@@ -45,7 +48,7 @@ impl PgHdr {
             p_prev_all: None,
             in_journal: false,
             dirty: false,
-            data: [0u8; PAGE_SIZE],
+            data: Arc::new(RwLock::new(disk_data)),
         })
     }
 
@@ -55,8 +58,10 @@ impl PgHdr {
             return Err(error_values(SQLExecValue::NOMEM));
         }
         self.write_begin()?;
-        let data_slice = &mut self.data[offset as usize..offset as usize + data.len()];
-        data_slice.copy_from_slice(data);
+
+        let disk_data_lock = Arc::clone(&self.data);
+        let mut disk_data = disk_data_lock.write()?;
+        disk_data.write(data, offset as usize);
         Ok(())
     }
 
@@ -91,7 +96,11 @@ impl PgHdr {
             // the main database file.
             // write the current page to the transaction journal
             // if it is not there already.
-            match pager.write_journal(self.pgno, &self.data) {
+            let mut record_data = [0u8; PAGE_SIZE];
+            let disk_data_lock = Arc::clone(&self.data);
+            let disk_data = disk_data_lock.write()?;
+            disk_data.read(&mut record_data, 0)?;
+            match pager.write_journal(self.pgno, &record_data) {
                 Ok(_) => {}
                 Err(_) => {
                     pager.rollback()?;
@@ -167,18 +176,30 @@ impl PgHdr {
 
     /// read this data with pgno from fd
     pub fn read_fd(&mut self, fd: RwLockReadGuard<File>) -> Result<()> {
-        match fd.read_exact_at(&mut self.data, (self.pgno - 1) as u64 * PAGE_SIZE as u64) {
-            Ok(_) => Ok(()),
+        let mut read_buf = [0u8; PAGE_SIZE];
+        match fd.read_exact_at(&mut read_buf, (self.pgno - 1) as u64 * PAGE_SIZE as u64) {
+            Ok(_) => {
+                let disk_data_lock = Arc::clone(&self.data);
+                let mut disk_data = disk_data_lock.write()?;
+                disk_data.write(&read_buf, 0)?;
+                Ok(())
+            }
             Err(_) => Err(error_values(SQLExecValue::IOERR)),
         }
     }
 
-    pub fn get_data(&self) -> &[u8] {
-        &self.data
+    pub fn get_data(&self) -> [u8; PAGE_SIZE] {
+        let mut read_data = [0u8; PAGE_SIZE];
+        let disk_data_lock = Arc::clone(&self.data);
+        let disk_data = disk_data_lock.read().unwrap();
+        disk_data.read(&mut read_data, 0).unwrap();
+        read_data
     }
 
     pub fn set_data(&mut self, data: &[u8]) {
-        self.data.copy_from_slice(data);
+        let disk_data_lock = Arc::clone(&self.data);
+        let mut disk_data = disk_data_lock.write().unwrap();
+        disk_data.write(data, 0);
     }
 
     pub fn get_pgno(&self) -> u32 {

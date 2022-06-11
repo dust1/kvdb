@@ -1,21 +1,25 @@
+use std::borrow::Borrow;
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::mem::size_of;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use super::page::MemPage;
 use super::page::PageOne;
+use crate::common;
 use crate::common::options::PagerOption;
 use crate::error::Result;
-use crate::storage::sqlite::page::PAGE_SIZE;
 use crate::storage::sqlite::page::Pager;
+use crate::storage::sqlite::page::PAGE_SIZE;
 use crate::storage::Store;
 
 pub struct Btree {
     pager: Arc<Mutex<Pager>>,
     cursor: Option<BtCursor>,
-    page1: Option<PageOne>,
+    page1: Option<Arc<PageOne>>,
     in_trans: u8,
     in_ckpt: u8,
     read_only: bool,
@@ -41,11 +45,7 @@ impl Btree {
     pub fn open(filename: &'static str, n_cache: usize) -> Result<Btree> {
         let pager_option = PagerOption {
             path: Some(filename),
-            max_page: if n_cache < 10 {
-                10
-            } else {
-                n_cache as u32
-            },
+            max_page: if n_cache < 10 { 10 } else { n_cache as u32 },
             n_extra: 0,
             read_only: false,
         };
@@ -63,7 +63,9 @@ impl Btree {
         };
 
         // create a table
-        btree.btree_begin_trans()?;
+        // btree.btree_begin_trans()?;
+        btree.lock_btree()?;
+        btree.new_database()?;
         btree.btree_create_table()?;
         btree.btree_commit_trans()?;
         Ok(btree)
@@ -77,6 +79,9 @@ impl Btree {
     /// begin a btree transaction.
     /// it is different from database and page transaction.
     pub fn btree_begin_trans(&mut self) -> Result<()> {
+        /// FIXME: it's a bad implement in pg_hdr.rs. i should review it.
+        /// because pager_begin is a database-wide transaction started.
+        /// so write_begin should not be in pg_hdr.rs
         todo!()
     }
 
@@ -87,6 +92,26 @@ impl Btree {
 
     /// rollback btree transaction
     pub fn btree_rollback_trans(&mut self) -> Result<()> {
+        todo!()
+    }
+
+    /// Get a reference to page1 of the database file.  This will
+    /// also acquire a readlock on that file.
+    fn lock_btree(&mut self) -> Result<()> {
+        if self.page1.is_some() {
+            return Ok(());
+        }
+        // let pager_arc = Arc::clone(&self.pager);
+        // let mut pager = pager_arc.as_ref().lock()?;
+        // let page = pager.get_page(1, Arc::clone(&pager_arc))?;
+        // let page_data = page.as_ref().lock()?;
+        // let page1:Option<&PageOne> = common::ptr_util::deserialize(page_data.get_data())?;
+
+        // self.page1 = page1.map(|p| Rc::new(p));
+        todo!()
+    }
+
+    fn new_database(&mut self) -> Result<()> {
         todo!()
     }
 }
