@@ -6,12 +6,14 @@ use std::mem::size_of;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::RwLock;
 
 use super::page::MemPage;
 use super::page::PageOne;
 use crate::common;
 use crate::common::options::PagerOption;
 use crate::error::Result;
+use crate::storage::sqlite::page::DiskData;
 use crate::storage::sqlite::page::Pager;
 use crate::storage::sqlite::page::PAGE_SIZE;
 use crate::storage::Store;
@@ -19,7 +21,7 @@ use crate::storage::Store;
 pub struct Btree {
     pager: Arc<Mutex<Pager>>,
     cursor: Option<BtCursor>,
-    page1: Option<Arc<PageOne>>,
+    page1: Option<Arc<RwLock<DiskData>>>,
     in_trans: u8,
     in_ckpt: u8,
     read_only: bool,
@@ -101,14 +103,14 @@ impl Btree {
         if self.page1.is_some() {
             return Ok(());
         }
-        // let pager_arc = Arc::clone(&self.pager);
-        // let mut pager = pager_arc.as_ref().lock()?;
-        // let page = pager.get_page(1, Arc::clone(&pager_arc))?;
-        // let page_data = page.as_ref().lock()?;
-        // let page1:Option<&PageOne> = common::ptr_util::deserialize(page_data.get_data())?;
+        let pager_arc = Arc::clone(&self.pager);
+        let mut pager = pager_arc.lock()?;
 
-        // self.page1 = page1.map(|p| Rc::new(p));
-        todo!()
+        let page = pager.get_page(1, Arc::clone(&pager_arc))?;
+        let pg_hdr = page.lock()?;
+        let disk_data = pg_hdr.get_disk_data();
+        self.page1 = Some(disk_data);
+        Ok(())
     }
 
     fn new_database(&mut self) -> Result<()> {

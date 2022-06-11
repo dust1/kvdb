@@ -28,6 +28,16 @@ pub struct PageOne {
     a_meta: [u32; SQLITE_N_BTREE_META - 1],
 }
 
+impl PageOne {
+    pub fn set_free_list(&mut self, free_list: u32) {
+        self.free_list = free_list;
+    }
+
+    pub fn get_free_list(&self) -> u32 {
+        self.free_list
+    }
+}
+
 /// each database page has a header that is an instance of this structure.
 #[derive(Copy)]
 pub struct PageHdr {

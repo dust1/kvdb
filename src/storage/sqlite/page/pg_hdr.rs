@@ -52,6 +52,10 @@ impl PgHdr {
         })
     }
 
+    pub fn get_disk_data(&self) -> Arc<RwLock<DiskData>> {
+        Arc::clone(&self.data)
+    }
+
     /// write data to page
     pub fn write(&mut self, data: &[u8], offset: u64) -> Result<()> {
         if PAGE_SIZE < offset as usize || offset as usize + data.len() > PAGE_SIZE {

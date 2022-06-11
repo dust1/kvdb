@@ -1,7 +1,9 @@
 use derivative::Derivative;
 
 use super::PAGE_SIZE;
+use crate::common;
 use crate::error::Result;
+use crate::storage::sqlite::btree::page::PageOne;
 
 /// a separate disk data objct
 #[derive(Derivative)]
@@ -17,6 +19,14 @@ impl DiskData {
             data: [0u8; PAGE_SIZE],
             is_dirty: false,
         }
+    }
+
+    pub fn to_page1(&self) -> Result<Option<&PageOne>> {
+        common::ptr_util::deserialize(&self.data)
+    }
+
+    pub fn to_page1_mut(&mut self) -> Result<Option<&mut PageOne>> {
+        common::ptr_util::deserialize_mut(&mut self.data)
     }
 
     pub fn read(&self, buf: &mut [u8], offset: usize) -> Result<usize> {
